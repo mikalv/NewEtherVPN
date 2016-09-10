@@ -1197,7 +1197,10 @@ bool IkeParseSaPayload(IKE_PACKET_SA_PAYLOAD *t, BUF *b)
 		return false;
 	}
 
+	Debug2("IkeParseSaPayload(): Doi: %s. Situation: %u. Now Parsing Payload List\n",
+	    ikeSaDoiToString(Endian32(h->DoI)), ikeSaSituationToString( Endian32(h->Situation)));
 	t->PayloadList = IkeParsePayloadList(buf, size, IKE_PAYLOAD_PROPOSAL);
+	Debug2("IkeParseSaPayload(): ---------------------\n");
 
 	return true;
 }
@@ -1254,6 +1257,7 @@ bool IkeParseProposalPayload(IKE_PACKET_PROPOSAL_PAYLOAD *t, BUF *b)
 	buf += h->SpiSize;
 	size -= h->SpiSize;
 
+	Debug2("IkeParseProposalPayload(): Number: %d, ProtocolId:%s. Transform#:%d\n", t->Number, ikeProtocolIdToString( t->ProtocolId), h->NumTransforms);
 	t->PayloadList = IkeParsePayloadList(buf, size, IKE_PAYLOAD_TRANSFORM);
 
 	return true;
@@ -1298,6 +1302,7 @@ bool IkeParseTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t, BUF *b)
 
 	t->Number = h.Number;
 	t->TransformId = h.TransformId;
+	Debug2("IkeParseTransformPayload() Transform#=%d. TransformId=%s\n", t->Number, ikeTransformIdP1KeyToString(t->TransformId));
 	t->ValueList = IkeParseTransformValueList(b);
 
 	return true;
@@ -1326,7 +1331,7 @@ LIST *IkeParseTransformValueList(BUF *b)
 	}
 
 	o = NewListFast(NULL);
-
+	Debug2("IkeParseTransformValueList(): (name,id,value,)");
 	while (b->Current < b->Size)
 	{
 		UCHAR af_bit, type;
@@ -1389,9 +1394,10 @@ LIST *IkeParseTransformValueList(BUF *b)
 		v = ZeroMalloc(sizeof(IKE_PACKET_TRANSFORM_VALUE));
 		v->Type = type;
 		v->Value = value;
-
+		Debug2("(%s,%d,%s), ", ikeTransformValueP1NameToString(v->Type), v->Value, ikeTransformValueP1ValueToString(v->Type, v->Value));
 		Add(o, v);
 	}
+	Debug2("\n");
 
 	if (ok == false)
 	{
@@ -1458,6 +1464,7 @@ bool IkeParseIdPayload(IKE_PACKET_ID_PAYLOAD *t, BUF *b)
 	t->Type = h.IdType;
 	t->ProtocolId = h.ProtocolId;
 	t->Port = Endian16(h.Port);
+	Debug2("IkeParseIdPayload(): Type: %s. ProtocolId:%d. Port:%d", ikeIDTypeToString(t->Type), t->ProtocolId, t->ProtocolId);
 	t->IdData = ReadRemainBuf(b);
 	if (t->IdData == NULL)
 	{
@@ -1650,6 +1657,7 @@ bool IkeParseNoticePayload(IKE_PACKET_NOTICE_PAYLOAD *t, BUF *b)
 
 	t->MessageType = Endian16(h.MessageType);
 	t->ProtocolId = h.ProtocolId;
+	Debug2("IkeParseNoticePayload(): MessageType:%d. ProtocolId:%d. DoI:%d.\n", t->MessageType, t->ProtocolId, h.DoI);
 	t->Spi = ReadBufFromBuf(b, h.SpiSize);
 	if (t->Spi == NULL)
 	{
@@ -1765,6 +1773,7 @@ bool IkeParseDeletePayload(IKE_PACKET_DELETE_PAYLOAD *t, BUF *b)
 
 	t->ProtocolId = h.ProtocolId;
 	t->SpiList = NewListFast(NULL);
+	Debug2("IkeParseDeletePayload(): protocolID:%d", t->ProtocolId);
 	num_spi = Endian16(h.NumSpis);
 	spi_size = h.SpiSize;
 
@@ -1863,7 +1872,7 @@ bool IkeParseDataPayload(IKE_PACKET_DATA_PAYLOAD *t, BUF *b)
 	}
 
 	t->Data = MemToBuf(b->Buf, b->Size);
-
+	Debug2("Parsing data Payload\n");
 	return true;
 }
 
@@ -2016,8 +2025,9 @@ LABEL_ERROR:
 		if (IKE_IS_SUPPORTED_PAYLOAD_TYPE(payload_type))
 		{
 			// Supported payload type
+		  Debug2("IkeParsePayloadListEx() Payload type: %s. Now Parsing Body\n", payloadToString(payload_type));
 			pay = IkeParsePayload(payload_type, payload_data);
-
+			Debug2("IkeParsePayloadListEx(). --------------\n");
 			if (pay == NULL)
 			{
 				FreeBuf(payload_data);
@@ -2031,6 +2041,7 @@ LABEL_ERROR:
 		{
 			// Unsupported payload type
 			Debug("ISAKMP: Ignored Payload Type: %u\n", payload_type);
+			Debug2("ISAKMP: Ignored Payload Type: %u\n", payload_type);
 			pay = IkeParsePayload(payload_type, payload_data);
 
 			if (pay == NULL)
@@ -2200,6 +2211,10 @@ IKE_PACKET *IkeParseEx(void *data, UINT size, IKE_CRYPTO_PARAM *cparam, bool hea
 		}
 		else
 		{
+		  Debug2("ParseIke: MessageId:%d. Size:%d, Exchange:%u. Encrypted:%s, Commit:%s Auth_only:%s. Header_Only: %s. Initiator->Responder: %I64u-%I64u\n",
+		                p->MessageId, p->MessageSize, p->ExchangeType, p->FlagEncrypted?"T":"F", p->FlagCommit?"T":"F", p->FlagAuthOnly?"T":"F", header_only?"T":"F",
+		                    p->InitiatorCookie, p->ResponderCookie);
+
 			if (header_only == false)
 			{
 				bool ok = false;
@@ -3150,9 +3165,236 @@ void IkeDhFreeCtx(DH_CTX *dh)
 }
 
 
+char *payloadToString(UINT payloadType) {
+  switch (payloadType) {
+    case IKE_PAYLOAD_NONE:
+      return "None";
+    case IKE_PAYLOAD_SA:
+      return "SA";
+    case IKE_PAYLOAD_PROPOSAL:
+      return "Proposal";
+    case IKE_PAYLOAD_TRANSFORM:
+      return "Transform";
+    case IKE_PAYLOAD_KEY_EXCHANGE:
+      return "KEY_EXCHANGE";
+    case IKE_PAYLOAD_ID:
+      return "PAYLOAD_ID";
+    case IKE_PAYLOAD_CERT:
+      return "PAYLOAD_CERT";
+    case IKE_PAYLOAD_CERT_REQUEST:
+      return "PAYLOAD_CERT_REQUEST";
+    case IKE_PAYLOAD_HASH:
+      return "PAYLOAD_HASH";
+    case IKE_PAYLOAD_SIGN:
+      return "PAYLOAD_SIGN";
+    case IKE_PAYLOAD_RAND:
+      return "PAYLOAD_RAND";
+    case IKE_PAYLOAD_NOTICE:
+      return "PAYLOAD_NOTICE";
+    case IKE_PAYLOAD_DELETE:
+      return "PAYLOAD_DELETE";
+    case IKE_PAYLOAD_VENDOR_ID:
+      return "PAYLOAD_VENDOR_ID";
+    case IKE_PAYLOAD_NAT_D:
+      return "PAYLOAD_NAT_D";
+    case IKE_PAYLOAD_NAT_OA:
+      return "PAYLOAD_NAT_OA";
+    case IKE_PAYLOAD_NAT_D_DRAFT:
+      return "PAYLOAD_NAT_D_DRAFT";
+    case IKE_PAYLOAD_NAT_OA_DRAFT:
+      return "PAYLOAD_NAT_OA_DRAFT";
+    case IKE_PAYLOAD_NAT_OA_DRAFT_2:
+      return "PAYLOAD_NAT_OA_DRAFT_2";
+    default:
+      return "Unknown type";
+  }
+}
 
+char *ikeIDTypeToString(UINT ikeIDType) {
+  switch (ikeIDType) {
+    case IKE_ID_IPV4_ADDR:
+      return "IPV4_ADDR";
+    case IKE_ID_FQDN:
+      return "FQDN";
+    case IKE_ID_USER_FQDN:
+      return "USER_FQDN";
+    case IKE_ID_IPV4_ADDR_SUBNET:
+      return "IPV4_ADDR_SUBNET";
+    case IKE_ID_IPV6_ADDR:
+      return "IPV6_ADDR";
+    case IKE_ID_IPV6_ADDR_SUBNET:
+      return "IPV6_ADDR_SUBNET";
+    case IKE_ID_DER_ASN1_DN:
+      return "DER_ASN1_DN";
+    case IKE_ID_DER_ASN1_GN:
+      return "DER_ASN1_GN";
+    case IKE_ID_KEY_ID:
+      return "KEY_ID";
+    default:
+      return "Unknow IKE_ID";
+  }
+}
 
+char *ikeSaDoiToString(UINT saDoi) {
+  switch (saDoi) {
+    case IKE_SA_DOI_IPSEC:
+      return "DOI_IPSEC";
+    default:
+      return "Unknown IKE_SA_DOI";
+  }
+}
+char ikeSaSituationToString(UINT saSituation) {
+  switch(saSituation) {
+    case IKE_SA_SITUATION_IDENTITY:
+      return "IDENTITY";
+    default:
+      return "Unknown IKE_SA_SITUATION";
+  }
+}
 
+char *ikeProtocolIdToString(UCHAR saProtocolNum) {
+  switch (saProtocolNum) {
+    case IKE_PROTOCOL_ID_IKE:
+      return "IKE";
+    case IKE_PROTOCOL_ID_IPSEC_AH:
+      return "IPSEC_AH";
+    case IKE_PROTOCOL_ID_IPSEC_ESP:
+      return "IPSEC_ESP";
+    case IKE_PROTOCOL_ID_IPV4:
+      return "IPV4";
+    case IKE_PROTOCOL_ID_IPV6:
+      return "IPV6";
+    default:
+      return "Unknown IKE Protocol ID";
+
+  }
+}
+
+char *ikeTransformIdP1KeyToString(UCHAR transformIdP1) {
+  switch (transformIdP1) {
+    case IKE_TRANSFORM_ID_P1_KEY_IKE:
+      return "KEY_IKE";
+    default:
+      return "Unknown TRANSFORM_ID";
+  }
+}
+
+char *ikeTransformValueP1NameToString(UCHAR transformValueName) {
+  switch (transformValueName) {
+    case IKE_TRANSFORM_VALUE_P1_CRYPTO:
+      return "P1_CRYPTO";
+    case IKE_TRANSFORM_VALUE_P1_HASH:
+      return "P1_HASH";
+    case IKE_TRANSFORM_VALUE_P1_AUTH_METHOD:
+      return "P1_AUTH_METHOD";
+    case IKE_TRANSFORM_VALUE_P1_DH_GROUP:
+      return "P1_DH_GROUP";
+    case IKE_TRANSFORM_VALUE_P1_LIFE_TYPE:
+      return "P1_LIFE_TYPE";
+    case IKE_TRANSFORM_VALUE_P1_LIFE_VALUE:
+      return "P1_LIFE_VALUE";
+    case IKE_TRANSFORM_VALUE_P1_KET_SIZE:
+      return "P1_KET_SIZE";
+    default:
+      return "Unknown TransformValueName";
+  }
+}
+
+char *ikeTransformValueP1ValueToString(UCHAR name, UINT value) {
+  char *valueString;
+  valueString = Malloc(64);
+  switch (name) {
+      case IKE_TRANSFORM_VALUE_P1_CRYPTO:
+        return ikeTransformP1CryptoToString(value);
+      case IKE_TRANSFORM_VALUE_P1_HASH:
+        return ikeTransformP1HashToString(value);
+      case IKE_TRANSFORM_VALUE_P1_AUTH_METHOD:
+        return ikeTransformP1AuthMethodToString(value);
+      case IKE_TRANSFORM_VALUE_P1_DH_GROUP:
+        return ikeTransformP1DhGroupToString(value);
+      case IKE_TRANSFORM_VALUE_P1_LIFE_TYPE:
+        return ikeTransformP1LifeTypeToString(value);
+      case IKE_TRANSFORM_VALUE_P1_LIFE_VALUE:
+      case IKE_TRANSFORM_VALUE_P1_KET_SIZE:
+        Format(valueString, 64, "%d",value);
+        return valueString;
+      default:
+        return "Unknown TransformValueName";
+    }
+}
+
+char *ikeTransformP1CryptoToString(UINT crypto) {
+  switch (crypto) {
+    case IKE_P1_CRYPTO_DES_CBC:
+      return "DES_CBC";
+    case IKE_P1_CRYPTO_BLOWFISH:
+      return "BLOWFISH";
+    case IKE_P1_CRYPTO_3DES_CBC:
+      return "3DES_CBC";
+    case IKE_P1_CRYPTO_CAST_CBC:
+      return "CAST_CBC";
+    case IKE_P1_CRYPTO_AES_CBC:
+      return "AES_CBC";
+    default:
+      return "UNKNOWN_CRYPTO";
+  }
+}
+
+char *ikeTransformP1HashToString(UINT hash) {
+  switch (hash) {
+    case IKE_P1_HASH_MD5:
+      return "MD5";
+    case IKE_P1_HASH_SHA1:
+      return "SHA1";
+    default:
+      return "UNKNOWN_HASH";
+  }
+}
+
+char *ikeTransformP1AuthMethodToString(UINT authMethod) {
+  switch(authMethod) {
+    case IKE_P1_AUTH_METHOD_PRESHAREDKEY:
+      return "PRESHAREDKEY";
+    case IKE_P1_AUTH_METHOD_RSA_SIGN:
+      return "RSA_SIGN";
+    case IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED:
+      return "XAUTH_INIT_PRESHARED";
+    case IKE_P1_AUTH_METHOD_XAUTH_RESP_PRESHARED:
+      return "XAUTH_RESP_PRESHARED";
+    case IKE_P1_AUTH_METHOD_XAUTH_INIT_RSA:
+      return "XAUTH_INIT_RSA";
+    case IKE_P1_AUTH_METHOD_XAUTH_RESP_RSA:
+      return "XAUTH_RESP_RSA";
+    case IKE_P1_AUTH_METHOD_XAUTH_INIT_RSAENCRYPTION:
+      return "XAUTH_INIT_RSAENCRYPTION";
+    case IKE_P1_AUTH_METHOD_XAUTH_RESP_RSANCRYPTION:
+      return "XAUTH_RESP_RSANCRYPTION";
+    default:
+      return "UNKNOWN_AUTH_METHOD";
+  }
+}
+
+char *ikeTransformP1DhGroupToString(UINT dhGroup) {
+  switch (dhGroup) {
+    case IKE_P1_DH_GROUP_768_MODP:
+      return "768_MODP";
+    case IKE_P1_DH_GROUP_1024_MODP:
+      return "1024_MODP";
+    case IKE_P1_DH_GROUP_1536_MODP:
+      return "1536_MODP";
+  }
+}
+
+char *ikeTransformP1LifeTypeToString(UINT lifeType) {
+  switch (lifeType) {
+    case IKE_P1_LIFE_TYPE_SECONDS:
+      return "SECONDS";
+    case IKE_P1_LIFE_TYPE_KILOBYTES:
+      return "KILOBYTES";
+    default:
+      return "UNKNOWN_LIFE_TYPE";
+  }
+}
 
 // Developed by SoftEther VPN Project at University of Tsukuba in Japan.
 // Department of Computer Science has dozens of overly-enthusiastic geeks.

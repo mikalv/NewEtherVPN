@@ -197,6 +197,7 @@ struct IKE_PROPOSAL_HEADER
 #define	IKE_PROTOCOL_ID_IPV4			4		// IP
 #define	IKE_PROTOCOL_ID_IPV6			41		// IPv6
 
+
 // IKE transform payload header
 struct IKE_TRANSFORM_HEADER
 {
@@ -252,8 +253,14 @@ struct IKE_TRANSFORM_VALUE
 #define IKE_P1_HASH_SHA1					2
 
 // Phase 1: The authentication method in the IKE transform value
-#define IKE_P1_AUTH_METHOD_PRESHAREDKEY		1
-#define IKE_P1_AUTH_METHOD_RSA_SIGN			3
+#define IKE_P1_AUTH_METHOD_PRESHAREDKEY		                    1
+#define IKE_P1_AUTH_METHOD_RSA_SIGN			                      3
+#define IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED               65001
+#define IKE_P1_AUTH_METHOD_XAUTH_RESP_PRESHARED               65002
+#define IKE_P1_AUTH_METHOD_XAUTH_INIT_RSA                     65005
+#define IKE_P1_AUTH_METHOD_XAUTH_RESP_RSA                     65006
+#define IKE_P1_AUTH_METHOD_XAUTH_INIT_RSAENCRYPTION           65007
+#define IKE_P1_AUTH_METHOD_XAUTH_RESP_RSANCRYPTION            65008
 
 // Phase 1: The DH group number in the IKE transform value
 #define IKE_P1_DH_GROUP_768_MODP			1
@@ -731,6 +738,20 @@ void IkeCryptoDecrypt(IKE_CRYPTO_KEY *k, void *dst, void *src, UINT size, void *
 DH_CTX *IkeDhNewCtx(IKE_DH *d);
 void IkeDhFreeCtx(DH_CTX *dh);
 
+// Stringify IPSec values
+char *payloadToString(UINT payloadType);
+char *ikeIDTypeToString(UINT ikeIDType);
+char *ikeSaDoiToString(UINT saDoi);
+char ikeSaSituationToString(UINT saSituation);
+char *ikeProtocolIdToString(UCHAR saProtocolNum);
+char *ikeTransformIdP1KeyToString(UCHAR transformIdP1);
+char *ikeTransformValueP1NameToString(UCHAR transformValueName);
+char *ikeTransformValueP1ValueToString(UCHAR name, UINT value);
+char *ikeTransformP1CryptoToString(UINT crypto);
+char *ikeTransformP1HashToString(UINT hash);
+char *ikeTransformP1AuthMethodToString(UINT authMethod);
+char *ikeTransformP1DhGroupToString(UINT dhGroup);
+char *ikeTransformP1LifeTypeToString(UINT lifeType);
 
 #endif	// IPSEC_PACKET_H
 

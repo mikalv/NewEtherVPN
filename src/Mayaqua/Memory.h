@@ -216,7 +216,9 @@ struct SHARED_BUFFER
 };
 
 // Macro
+// Retrieves an item from a list
 #define	LIST_DATA(o, i)		(((o) != NULL) ? ((o)->p[(i)]) : NULL)
+// Returns the size of the list
 #define	LIST_NUM(o)			(((o) != NULL) ? (o)->num_item : 0)
 #define	HASH_LIST_NUM(o)	(((o) != NULL) ? (o)->NumItems : 0)
 

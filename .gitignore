@@ -1,0 +1,9 @@
+.cproject
+.project
+.settings/
+Makefile
+bin/
+core
+src/bin/BuiltHamcoreFiles/
+tmp/
+

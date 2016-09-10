@@ -113,7 +113,6 @@
 
 #include "CedarPch.h"
 
-
 static bool ipsec_disable = false;
 
 // Disabling whole IPsec
@@ -255,7 +254,6 @@ void IPsecProcPacket(IPSEC_SERVER *s, UDPPACKET *p)
 
 	l2tp = s->L2TP;
 	ike = s->Ike;
-
 	// UDP decapsulation process
 	if (p->DestPort == IPSEC_PORT_IPSEC_ESP_UDP)
 	{

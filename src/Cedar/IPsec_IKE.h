@@ -114,6 +114,8 @@
 #ifndef	IPSEC_IKE_H
 #define	IPSEC_IKE_H
 
+#include "Mayaqua/Str.h"
+
 //// Macro
 
 //// Constants
@@ -151,6 +153,7 @@
 #define	IKE_VENDOR_ID_MICROSOFT_L2TP		"0x4048b7d56ebce88525e7de7f00d6c2d3"
 #define	IKE_VENDOR_ID_MS_NT5_ISAKMPOAKLEY	"0x1e2b516905991c7d7c96fcbfb587e461"
 #define	IKE_VENDOR_ID_MS_VID_INITIALCONTACT	"0x26244d38eddb61b3172a36e3d0cfb819"
+#define IKE_VENDOR_ID_XAUTH                 "0x09002689DFD6B712" //Truncated md5sum of "draft-ietf-ipsra-isakmp-xauth-06.txt"
 
 // Quota
 #define	IKE_QUOTA_MAX_NUM_CLIENTS_PER_IP	1000			// The number of IKE_CLIENT per IP address
@@ -216,6 +219,9 @@ struct IKE_CAPS
 	// Use information
 	bool UsingNatTraversalRfc3947;
 	bool UsingNatTraversalDraftIetf;
+
+	// XAuth
+	bool XAuth;       //Extended IPSec authentication defined by draft-ietf-ipsec-isakmp-xauth-06
 };
 
 // IKE / IPsec client
@@ -392,8 +398,8 @@ void ProcIkeInformationalExchangePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_P
 void FreeIkeSa(IKE_SA *sa);
 void FreeIkeClient(IKE_SERVER *ike, IKE_CLIENT *c);
 UINT64 GenerateNewResponserCookie(IKE_SERVER *ike);
-bool GetBestTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET *pr, IKE_SA_TRANSFORM_SETTING *setting);
-bool TransformPayloadToTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET_TRANSFORM_PAYLOAD *transform, IKE_SA_TRANSFORM_SETTING *setting);
+bool GetBestTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET *pr, IKE_SA_TRANSFORM_SETTING *setting, IKE_CAPS caps);
+bool TransformPayloadToTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET_TRANSFORM_PAYLOAD *transform, IKE_SA_TRANSFORM_SETTING *setting, IKE_CAPS caps);
 IKE_CLIENT *SearchIkeClientForIkePacket(IKE_SERVER *ike, IP *client_ip, UINT client_port, IP *server_ip, UINT server_port, IKE_PACKET *pr);
 IKE_CLIENT *SearchOrCreateNewIkeClientForIkePacket(IKE_SERVER *ike, IP *client_ip, UINT client_port, IP *server_ip, UINT server_port, IKE_PACKET *pr);
 UINT GetNumberOfIkeClientsFromIP(IKE_SERVER *ike, IP *client_ip);
@@ -408,12 +414,13 @@ IKE_SA *FindIkeSaByResponderCookieAndClient(IKE_SERVER *ike, UINT64 responder_co
 IKE_CLIENT *NewIkeClient(IKE_SERVER *ike, IP *client_ip, UINT client_port, IP *server_ip, UINT server_port);
 IKE_CLIENT *SetIkeClientEndpoint(IKE_SERVER *ike, IKE_CLIENT *c, IP *client_ip, UINT client_port, IP *server_ip, UINT server_port);
 IKE_SA *NewIkeSa(IKE_SERVER *ike, IKE_CLIENT *c, UINT64 init_cookie, UINT mode, IKE_SA_TRANSFORM_SETTING *setting);
-IKE_PACKET_PAYLOAD *TransformSettingToTransformPayloadForIke(IKE_SERVER *ike, IKE_SA_TRANSFORM_SETTING *setting);
+IKE_PACKET_PAYLOAD *TransformSettingToTransformPayloadForIke(IKE_SERVER *ike, IKE_SA_TRANSFORM_SETTING *setting, IKE_CAPS caps);
 void IkeSaSendPacket(IKE_SERVER *ike, IKE_SA *sa, IKE_PACKET *p);
 IKE_PACKET *IkeSaRecvPacket(IKE_SERVER *ike, IKE_SA *sa, void *data, UINT size);
 void IkeSendUdpPacket(IKE_SERVER *ike, UINT type, IP *server_ip, UINT server_port, IP *client_ip, UINT client_port, void *data, UINT size);
 void IkeAddVendorIdPayloads(IKE_PACKET *p);
 BUF *IkeStrToVendorId(char *str);
+char *IkeVendorIdToString(BUF *vendorID);
 void IkeAddVendorId(IKE_PACKET *p, char *str);
 bool IkeIsVendorIdExists(IKE_PACKET *p, char *str);
 void IkeCheckCaps(IKE_CAPS *caps, IKE_PACKET *p);

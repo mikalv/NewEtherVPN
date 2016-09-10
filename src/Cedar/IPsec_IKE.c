@@ -135,8 +135,9 @@ void ProcIKEPacketRecv(IKE_SERVER *ike, UDPPACKET *p)
 			return;
 		}
 
-		//Debug("InitiatorCookie: %I64u, ResponderCookie: %I64u\n", header->InitiatorCookie, header->ResponderCookie);
+		Debug("InitiatorCookie: %I64u, ResponderCookie: %I64u\n", header->InitiatorCookie, header->ResponderCookie);
 
+		Debug("Processing IPSec UDP packet with Exchange: %d\n");
 		switch (header->ExchangeType)
 		{
 		case IKE_EXCHANGE_TYPE_MAIN:	// Main mode
@@ -152,7 +153,7 @@ void ProcIKEPacketRecv(IKE_SERVER *ike, UDPPACKET *p)
 			break;
 
 		case IKE_EXCHANGE_TYPE_INFORMATION:	// Information exchange
-			ProcIkeInformationalExchangePacketRecv(ike, p, header);
+		  ProcIkeInformationalExchangePacketRecv(ike, p, header);
 			break;
 		}
 
@@ -2846,7 +2847,7 @@ void ProcIkeAggressiveModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *
 					// Check whether there is acceptable SA parameters by analyzing proposed parameters
 					IKE_SA_TRANSFORM_SETTING setting;
 
-					if (GetBestTransformSettingForIkeSa(ike, pr, &setting) && (GetNumberOfIkeSaOfIkeClient(ike, c) <= IKE_QUOTA_MAX_SA_PER_CLIENT))
+					if (GetBestTransformSettingForIkeSa(ike, pr, &setting, caps) && (GetNumberOfIkeSaOfIkeClient(ike, c) <= IKE_QUOTA_MAX_SA_PER_CLIENT))
 					{
 						IKE_PACKET_PAYLOAD *tp;
 						IKE_PACKET_PAYLOAD *pp;
@@ -2933,7 +2934,7 @@ void ProcIkeAggressiveModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *
 
 								//// Assemble the SA payload
 								// Construct transform payload
-								tp = TransformSettingToTransformPayloadForIke(ike, &setting);
+								tp = TransformSettingToTransformPayloadForIke(ike, &setting, caps);
 
 								// Build a proposal payload
 								pp = IkeNewProposalPayload(1, IKE_PROTOCOL_ID_IKE, NULL, 0, NewListSingle(tp));
@@ -3184,6 +3185,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 	{
 		return;
 	}
+	Debug2("IKE_Client. ID:%u. clinetID:%s\n", c->Id, &c->ClientId);
 
 	if (header->ResponderCookie == 0)
 	{
@@ -3210,7 +3212,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 					// Check whether there is acceptable SA parameters by analyzing proposed parameters
 					IKE_SA_TRANSFORM_SETTING setting;
 
-					if (GetBestTransformSettingForIkeSa(ike, pr, &setting) && (GetNumberOfIkeSaOfIkeClient(ike, c) <= IKE_QUOTA_MAX_SA_PER_CLIENT))
+					if (GetBestTransformSettingForIkeSa(ike, pr, &setting, caps) && (GetNumberOfIkeSaOfIkeClient(ike, c) <= IKE_QUOTA_MAX_SA_PER_CLIENT))
 					{
 						IKE_PACKET *ps;
 						IKE_PACKET_PAYLOAD *tp;
@@ -3244,7 +3246,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 
 						//// Assemble the SA payload
 						// Construct a transform payload
-						tp = TransformSettingToTransformPayloadForIke(ike, &setting);
+						tp = TransformSettingToTransformPayloadForIke(ike, &setting, caps);
 
 						// Build a proposal payload
 						pp = IkeNewProposalPayload(1, IKE_PROTOCOL_ID_IKE, NULL, 0, NewListSingle(tp));
@@ -3267,6 +3269,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 						sa->BlockSize = sa->TransformSetting.Crypto->BlockSize;
 
 						IkeFree(ps);
+						Debug2("----------------------- Done with IKE Packet ---------------\n");
 					}
 					else
 					{
@@ -3806,6 +3809,8 @@ void IkeCheckCaps(IKE_CAPS *caps, IKE_PACKET *p)
 
 	Zero(caps, sizeof(IKE_CAPS));
 
+	caps->XAuth = IkeIsVendorIdExists(p, IKE_VENDOR_ID_XAUTH);
+
 	caps->NatTraversalRfc3947 = IkeIsVendorIdExists(p, IKE_VENDOR_ID_RFC3947_NAT_T);
 
 	caps->NatTraversalDraftIetf = IkeIsVendorIdExists(p, IKE_VENDOR_ID_IPSEC_NAT_T_IKE_03) ||
@@ -3882,6 +3887,7 @@ void IkeAddVendorIdPayloads(IKE_PACKET *p)
 	IkeAddVendorId(p, IKE_VENDOR_ID_IPSEC_NAT_T_IKE_02_2);
 	IkeAddVendorId(p, IKE_VENDOR_ID_IPSEC_NAT_T_IKE_00);
 	IkeAddVendorId(p, IKE_VENDOR_ID_RFC3706_DPD);
+	IkeAddVendorId(p, IKE_VENDOR_ID_XAUTH);
 }
 
 // Add the vendor ID payload
@@ -3906,6 +3912,17 @@ void IkeAddVendorId(IKE_PACKET *p, char *str)
 	Add(p->PayloadList, payload);
 
 	FreeBuf(buf);
+}
+
+// Converts a BUF to a string
+char *IkeVendorIdToString(BUF *vendorID) {
+  if (vendorID == NULL || vendorID->Size == 0) {
+    FreeBuf(vendorID);
+    return NULL;
+  }
+  char *value;
+  value = Malloc(vendorID->Size);
+  BinToStr(value, vendorID->Size, (void *) vendorID->Buf, vendorID->Size);
 }
 
 // Convert string to the vendor ID
@@ -4754,7 +4771,7 @@ bool GetBestTransformSettingForIPsecSa(IKE_SERVER *ike, IKE_PACKET *pr, IPSEC_SA
 }
 
 // Select the optimal transform settings for the IKE SA
-bool GetBestTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET *pr, IKE_SA_TRANSFORM_SETTING *setting)
+bool GetBestTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET *pr, IKE_SA_TRANSFORM_SETTING *setting, IKE_CAPS caps)
 {
 	IKE_PACKET_PAYLOAD *sa_payload;
 	IKE_PACKET_SA_PAYLOAD *sa;
@@ -4802,7 +4819,7 @@ bool GetBestTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET *pr, IKE_SA_TRA
 						{
 							IKE_SA_TRANSFORM_SETTING set;
 
-							if (TransformPayloadToTransformSettingForIkeSa(ike, transform, &set))
+							if (TransformPayloadToTransformSettingForIkeSa(ike, transform, &set, caps))
 							{
 								Copy(setting, &set, sizeof(IKE_SA_TRANSFORM_SETTING));
 								return true;
@@ -4859,7 +4876,7 @@ IKE_PACKET_PAYLOAD *TransformSettingToTransformPayloadForIPsec(IKE_SERVER *ike, 
 }
 
 // Convert a structure to the transform payload (for IKE SA)
-IKE_PACKET_PAYLOAD *TransformSettingToTransformPayloadForIke(IKE_SERVER *ike, IKE_SA_TRANSFORM_SETTING *setting)
+IKE_PACKET_PAYLOAD *TransformSettingToTransformPayloadForIke(IKE_SERVER *ike, IKE_SA_TRANSFORM_SETTING *setting, IKE_CAPS caps)
 {
 	LIST *value_list;
 	// Validate arguments
@@ -4872,7 +4889,12 @@ IKE_PACKET_PAYLOAD *TransformSettingToTransformPayloadForIke(IKE_SERVER *ike, IK
 
 	Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_CRYPTO, setting->CryptoId));
 	Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_HASH, setting->HashId));
-	Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, IKE_P1_AUTH_METHOD_PRESHAREDKEY));
+	if (caps.XAuth) {
+	  Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, IKE_P1_AUTH_METHOD_XAUTH_RESP_PRESHARED));
+	} else {
+	  Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, IKE_P1_AUTH_METHOD_PRESHAREDKEY));
+	}
+
 	Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_DH_GROUP, setting->DhId));
 
 	if (setting->LifeSeconds != INFINITE)
@@ -4998,7 +5020,7 @@ bool TransformPayloadToTransformSettingForIPsecSa(IKE_SERVER *ike, IKE_PACKET_TR
 }
 
 // Convert a transform payload to a structure (for IKE SA)
-bool TransformPayloadToTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET_TRANSFORM_PAYLOAD *transform, IKE_SA_TRANSFORM_SETTING *setting)
+bool TransformPayloadToTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET_TRANSFORM_PAYLOAD *transform, IKE_SA_TRANSFORM_SETTING *setting, IKE_CAPS caps)
 {
 	UINT i;
 	// Validate arguments
@@ -5012,7 +5034,8 @@ bool TransformPayloadToTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET_TRAN
 	setting->CryptoId = IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_CRYPTO, 0);
 	setting->HashId = IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_HASH, 0);
 
-	if (IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, 0) != IKE_P1_AUTH_METHOD_PRESHAREDKEY)
+	if (IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, 0) != IKE_P1_AUTH_METHOD_PRESHAREDKEY &&
+	    (IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, 0) != IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED || !caps.XAuth))
 	{
 		// Only PSK authentication method is supported
 		return false;

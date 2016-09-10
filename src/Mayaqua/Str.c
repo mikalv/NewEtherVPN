@@ -3069,6 +3069,32 @@ void Debug(char *fmt, ...)
 	va_end(args);
 }
 
+// Display a debug string
+void Debug2(char *fmt, ...)
+{
+  va_list args;
+  // Validate arguments
+  if (fmt == NULL)
+  {
+    return;
+  }
+  bool g2_debug = true;
+  if (g2_debug == false)
+  {
+    return;
+  }
+
+  va_start(args, fmt);
+  // Validate arguments
+  if (fmt == NULL)
+  {
+    return;
+  }
+
+  PrintArgs(fmt, args);
+  va_end(args);
+}
+
 // Format the string, and return the result
 char *CopyFormat(char *fmt, ...)
 {

@@ -114,6 +114,9 @@
 #ifndef	STR_H
 #define	STR_H
 
+
+#define LOG_IPSEC_IKE 1
+
 // String token
 struct TOKEN_LIST
 {
