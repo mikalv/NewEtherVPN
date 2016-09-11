@@ -146,6 +146,7 @@
 #define IKE_PAYLOAD_NOTICE				11		// Notification Payload
 #define IKE_PAYLOAD_DELETE				12		// Deletion payload
 #define IKE_PAYLOAD_VENDOR_ID			13		// Vendor ID payload
+#define IKE_PAYLOAD_ATTRIBUTE     14    // Attribute payload. Defined in draft-ietf-ipsec-isakmp-mode-cfg-05.txt
 #define	IKE_PAYLOAD_NAT_D				20		// NAT-D payload
 #define	IKE_PAYLOAD_NAT_OA				21		// NAT-OA payload
 #define	IKE_PAYLOAD_NAT_D_DRAFT			130		// NAT-D payload draft
@@ -328,6 +329,11 @@ struct IKE_CERT_HEADER
 struct IKE_CERT_REQUEST_HEADER
 {
 	UCHAR CertType;								// Certificate Type
+} GCC_PACKED;
+
+
+struct IKE_DATA_ATTRIBUTE {
+    USHORT AttributeType;
 } GCC_PACKED;
 
 // IKE notification payload header
@@ -742,7 +748,7 @@ void IkeDhFreeCtx(DH_CTX *dh);
 char *payloadToString(UINT payloadType);
 char *ikeIDTypeToString(UINT ikeIDType);
 char *ikeSaDoiToString(UINT saDoi);
-char ikeSaSituationToString(UINT saSituation);
+char *ikeSaSituationToString(UINT saSituation);
 char *ikeProtocolIdToString(UCHAR saProtocolNum);
 char *ikeTransformIdP1KeyToString(UCHAR transformIdP1);
 char *ikeTransformValueP1NameToString(UCHAR transformValueName);

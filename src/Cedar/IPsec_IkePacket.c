@@ -1108,7 +1108,7 @@ IKE_PACKET_PAYLOAD *IkeParsePayload(UINT payload_type, BUF *b)
 		ok = IkeParseProposalPayload(&p->Payload.Proposal, b);
 		break;
 
-	case IKE_PAYLOAD_TRANSFORM:			// Proposal payload
+	case IKE_PAYLOAD_TRANSFORM:			// Transform payload
 		ok = IkeParseTransformPayload(&p->Payload.Transform, b);
 		break;
 
@@ -1197,8 +1197,9 @@ bool IkeParseSaPayload(IKE_PACKET_SA_PAYLOAD *t, BUF *b)
 		return false;
 	}
 
-	Debug2("IkeParseSaPayload(): Doi: %s. Situation: %u. Now Parsing Payload List\n",
-	    ikeSaDoiToString(Endian32(h->DoI)), ikeSaSituationToString( Endian32(h->Situation)));
+	char *doi = ikeSaDoiToString(Endian32(h->DoI));
+	char *sit = ikeSaSituationToString( Endian32(h->Situation));
+	Debug2("IkeParseSaPayload(): Doi: %s. Situation: %s. Now Parsing Payload List\n", doi, sit);
 	t->PayloadList = IkeParsePayloadList(buf, size, IKE_PAYLOAD_PROPOSAL);
 	Debug2("IkeParseSaPayload(): ---------------------\n");
 
@@ -1394,7 +1395,13 @@ LIST *IkeParseTransformValueList(BUF *b)
 		v = ZeroMalloc(sizeof(IKE_PACKET_TRANSFORM_VALUE));
 		v->Type = type;
 		v->Value = value;
-		Debug2("(%s,%d,%s), ", ikeTransformValueP1NameToString(v->Type), v->Value, ikeTransformValueP1ValueToString(v->Type, v->Value));
+
+		char *k1 = ikeTransformValueP1NameToString(v->Type);
+		char *k2 = ikeTransformValueP1ValueToString(v->Type, v->Value);
+		Debug2("(%s,%s), ", k1, k2);
+
+
+
 		Add(o, v);
 	}
 	Debug2("\n");
@@ -1464,7 +1471,7 @@ bool IkeParseIdPayload(IKE_PACKET_ID_PAYLOAD *t, BUF *b)
 	t->Type = h.IdType;
 	t->ProtocolId = h.ProtocolId;
 	t->Port = Endian16(h.Port);
-	Debug2("IkeParseIdPayload(): Type: %s. ProtocolId:%d. Port:%d", ikeIDTypeToString(t->Type), t->ProtocolId, t->ProtocolId);
+	Debug2("IkeParseIdPayload(): Type: %s. ProtocolId:%d. Port:%d.\n", ikeIDTypeToString(t->Type), t->ProtocolId, t->Port);
 	t->IdData = ReadRemainBuf(b);
 	if (t->IdData == NULL)
 	{
@@ -2212,7 +2219,7 @@ IKE_PACKET *IkeParseEx(void *data, UINT size, IKE_CRYPTO_PARAM *cparam, bool hea
 		else
 		{
 		  Debug2("ParseIke: MessageId:%d. Size:%d, Exchange:%u. Encrypted:%s, Commit:%s Auth_only:%s. Header_Only: %s. Initiator->Responder: %I64u-%I64u\n",
-		                p->MessageId, p->MessageSize, p->ExchangeType, p->FlagEncrypted?"T":"F", p->FlagCommit?"T":"F", p->FlagAuthOnly?"T":"F", header_only?"T":"F",
+		                p->MessageId, p->MessageSize, ikeExchangeTypeToString(p->ExchangeType), p->FlagEncrypted?"T":"F", p->FlagCommit?"T":"F", p->FlagAuthOnly?"T":"F", header_only?"T":"F",
 		                    p->InitiatorCookie, p->ResponderCookie);
 
 			if (header_only == false)
@@ -3206,7 +3213,7 @@ char *payloadToString(UINT payloadType) {
     case IKE_PAYLOAD_NAT_OA_DRAFT_2:
       return "PAYLOAD_NAT_OA_DRAFT_2";
     default:
-      return "Unknown type";
+      return CopyFormat("UNKNOWN_PAYLOAD_TYPE:%d", payloadType);
   }
 }
 
@@ -3231,7 +3238,7 @@ char *ikeIDTypeToString(UINT ikeIDType) {
     case IKE_ID_KEY_ID:
       return "KEY_ID";
     default:
-      return "Unknow IKE_ID";
+      return CopyFormat("UNKNOWN_IKE_ID:%D", ikeIDType);
   }
 }
 
@@ -3240,15 +3247,15 @@ char *ikeSaDoiToString(UINT saDoi) {
     case IKE_SA_DOI_IPSEC:
       return "DOI_IPSEC";
     default:
-      return "Unknown IKE_SA_DOI";
+      return CopyFormat("Unknown IKE_SA_DOI:%d", saDoi);
   }
 }
-char ikeSaSituationToString(UINT saSituation) {
+char *ikeSaSituationToString(UINT saSituation) {
   switch(saSituation) {
     case IKE_SA_SITUATION_IDENTITY:
       return "IDENTITY";
     default:
-      return "Unknown IKE_SA_SITUATION";
+      return CopyFormat("Unknown IKE_SA_SITUATION:%d", saSituation);
   }
 }
 
@@ -3265,7 +3272,7 @@ char *ikeProtocolIdToString(UCHAR saProtocolNum) {
     case IKE_PROTOCOL_ID_IPV6:
       return "IPV6";
     default:
-      return "Unknown IKE Protocol ID";
+      return CopyFormat("Unknown_IKE_Protocol_ID:%d", saProtocolNum);
 
   }
 }
@@ -3275,7 +3282,7 @@ char *ikeTransformIdP1KeyToString(UCHAR transformIdP1) {
     case IKE_TRANSFORM_ID_P1_KEY_IKE:
       return "KEY_IKE";
     default:
-      return "Unknown TRANSFORM_ID";
+      return CopyFormat("UNKNOWN_TRANSFORM_ID:%d", transformIdP1);
   }
 }
 
@@ -3296,13 +3303,11 @@ char *ikeTransformValueP1NameToString(UCHAR transformValueName) {
     case IKE_TRANSFORM_VALUE_P1_KET_SIZE:
       return "P1_KET_SIZE";
     default:
-      return "Unknown TransformValueName";
+      return CopyFormat("Unknown TransformValueName:%d", transformValueName);
   }
 }
 
 char *ikeTransformValueP1ValueToString(UCHAR name, UINT value) {
-  char *valueString;
-  valueString = Malloc(64);
   switch (name) {
       case IKE_TRANSFORM_VALUE_P1_CRYPTO:
         return ikeTransformP1CryptoToString(value);
@@ -3316,10 +3321,9 @@ char *ikeTransformValueP1ValueToString(UCHAR name, UINT value) {
         return ikeTransformP1LifeTypeToString(value);
       case IKE_TRANSFORM_VALUE_P1_LIFE_VALUE:
       case IKE_TRANSFORM_VALUE_P1_KET_SIZE:
-        Format(valueString, 64, "%d",value);
-        return valueString;
+        return CopyFormat("%u", value);
       default:
-        return "Unknown TransformValueName";
+        return CopyFormat("Unknown TransformValueName:%d", name);
     }
 }
 
@@ -3336,7 +3340,7 @@ char *ikeTransformP1CryptoToString(UINT crypto) {
     case IKE_P1_CRYPTO_AES_CBC:
       return "AES_CBC";
     default:
-      return "UNKNOWN_CRYPTO";
+      return CopyFormat("UNKNOWN_CRYPTO:%d", crypto);
   }
 }
 
@@ -3347,7 +3351,7 @@ char *ikeTransformP1HashToString(UINT hash) {
     case IKE_P1_HASH_SHA1:
       return "SHA1";
     default:
-      return "UNKNOWN_HASH";
+      return CopyFormat("UNKNOWN_HASH:%d", hash);
   }
 }
 
@@ -3382,6 +3386,8 @@ char *ikeTransformP1DhGroupToString(UINT dhGroup) {
       return "1024_MODP";
     case IKE_P1_DH_GROUP_1536_MODP:
       return "1536_MODP";
+    default:
+      return CopyFormat("UNKNOWN_DH_GROUP:%d", dhGroup);
   }
 }
 
@@ -3392,7 +3398,7 @@ char *ikeTransformP1LifeTypeToString(UINT lifeType) {
     case IKE_P1_LIFE_TYPE_KILOBYTES:
       return "KILOBYTES";
     default:
-      return "UNKNOWN_LIFE_TYPE";
+      return CopyFormat("UNKNOWN_LIFE_TYPE:%d", lifeType);
   }
 }
 

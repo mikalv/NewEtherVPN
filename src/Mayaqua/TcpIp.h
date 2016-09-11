@@ -745,6 +745,7 @@ struct IKE_HEADER
 #define	IKE_EXCHANGE_TYPE_MAIN				2	// Main mode
 #define IKE_EXCHANGE_TYPE_AGGRESSIVE		4	// Aggressive mode
 #define IKE_EXCHANGE_TYPE_INFORMATION		5	// Information exchange
+#define IKE_EXCHANGE_TYPE_TRANSACTION   6 // Transaction exchange. Defined in draft-ietf-ipsec-isakmp-mode-cfg-05.txt
 #define IKE_EXCHANGE_TYPE_QUICK				32	// Quick mode
 
 // DHCPv4 data
@@ -926,7 +927,7 @@ void BuildClasslessRouteStr(char *str, UINT str_size, DHCP_CLASSLESS_ROUTE *r);
 void BuildClasslessRouteTableStr(char *str, UINT str_size, DHCP_CLASSLESS_ROUTE_TABLE *t);
 bool NormalizeClasslessRouteTableStr(char *dst, UINT dst_size, char *src);
 
-
+char *ikeExchangeTypeToString(UCHAR exchangeType);
 
 #ifdef	OS_WIN32
 #pragma pack(pop)

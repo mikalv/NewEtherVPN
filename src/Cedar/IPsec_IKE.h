@@ -186,6 +186,7 @@ struct IKE_SA_TRANSFORM_SETTING
 	UINT DhId;
 	UINT LifeKilobytes;
 	UINT LifeSeconds;
+	UINT AuthenticationMethod;
 };
 
 // IPsec SA transforms data
@@ -456,6 +457,9 @@ void SendInformationalExchangePacket(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_
 void SendInformationalExchangePacketEx(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie);
 void SendDeleteIkeSaPacket(IKE_SERVER *ike, IKE_CLIENT *c, UINT64 init_cookie, UINT64 resp_cookie);
 void SendDeleteIPsecSaPacket(IKE_SERVER *ike, IKE_CLIENT *c, UINT spi);
+void SendTransactionExchangePacket(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload);
+void SendTransactionExchangePacketEx(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie);
+
 void IPsecCalcKeymat(IKE_SERVER *ike, IKE_HASH *h, void *dst, UINT dst_size, void *skeyid_d_data, UINT skeyid_d_size, UCHAR protocol, UINT spi, void *rand_init_data, UINT rand_init_size,
 					 void *rand_resp_data, UINT rand_resp_size, void *df_key_data, UINT df_key_size);
 

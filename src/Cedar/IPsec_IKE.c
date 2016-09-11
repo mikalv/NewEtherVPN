@@ -3225,7 +3225,6 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 						Debug("P1 Transform: %s %s %s(%u) %u %u\n",
 							setting.Dh->Name, setting.Hash->Name, setting.Crypto->Name, setting.CryptoKeySize,
 							setting.LifeKilobytes, setting.LifeSeconds);
-
 #ifdef	FORCE_LIFETIME_MM
 						setting.LifeSeconds = FORCE_LIFETIME_MM;
 #endif	// FORCE_LIFETIME_MM
@@ -3571,7 +3570,14 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 			}
 		}
 	}
+	Debug2("--------------------------------- Finished Proc in main mode -----------------------------------\n");
 }
+
+
+void SendXAuthRequest() {
+
+}
+
 
 // Update the IV of IPsec SA
 void IPsecSaUpdateIv(IPSECSA *sa, void *iv, UINT iv_size)
@@ -4889,9 +4895,9 @@ IKE_PACKET_PAYLOAD *TransformSettingToTransformPayloadForIke(IKE_SERVER *ike, IK
 
 	Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_CRYPTO, setting->CryptoId));
 	Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_HASH, setting->HashId));
-	if (caps.XAuth) {
-	  Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, IKE_P1_AUTH_METHOD_XAUTH_RESP_PRESHARED));
-	} else {
+	if (caps.XAuth && setting->AuthenticationMethod == IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED) {
+	  Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED));
+	} else if (setting->AuthenticationMethod == IKE_P1_AUTH_METHOD_PRESHAREDKEY) {
 	  Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, IKE_P1_AUTH_METHOD_PRESHAREDKEY));
 	}
 
@@ -5034,11 +5040,14 @@ bool TransformPayloadToTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET_TRAN
 	setting->CryptoId = IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_CRYPTO, 0);
 	setting->HashId = IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_HASH, 0);
 
-	if (IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, 0) != IKE_P1_AUTH_METHOD_PRESHAREDKEY &&
-	    (IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, 0) != IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED || !caps.XAuth))
+	UINT authenticationMethod = IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, 0);
+	if (authenticationMethod != IKE_P1_AUTH_METHOD_PRESHAREDKEY &&
+	    (authenticationMethod != IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED || !caps.XAuth))
 	{
 		// Only PSK authentication method is supported
 		return false;
+	} else {
+	  setting->AuthenticationMethod = authenticationMethod;
 	}
 
 	setting->DhId = IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_DH_GROUP, 0);

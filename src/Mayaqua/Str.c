@@ -3040,10 +3040,10 @@ void DebugArgs(char *fmt, va_list args)
 	{
 		return;
 	}
-	if (g_debug == false)
+	/*if (g_debug == false)
 	{
 		return;
-	}
+	}*/
 
 	PrintArgs(fmt, args);
 }
@@ -3057,10 +3057,10 @@ void Debug(char *fmt, ...)
 	{
 		return;
 	}
-	if (g_debug == false)
+	/*if (g_debug == false)
 	{
 		return;
-	}
+	}*/
 
 	va_start(args, fmt);
 

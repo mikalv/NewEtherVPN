@@ -4277,6 +4277,21 @@ LABEL_CLEANUP:
 	}
 }
 
+char *ikeExchangeTypeToString(UCHAR exchangeType) {
+  switch (exchangeType) {
+    case IKE_EXCHANGE_TYPE_MAIN:
+      return "MAIN";
+    case IKE_EXCHANGE_TYPE_AGGRESSIVE:
+      return "AGGRESSIVE";
+    case IKE_EXCHANGE_TYPE_INFORMATION:
+      return "INFORMATION";
+    case IKE_EXCHANGE_TYPE_QUICK:
+      return "QUICK";
+    default:
+      return "UNKNOWN_EXCHANGE_TYPE";
+  }
+}
+
 // Developed by SoftEther VPN Project at University of Tsukuba in Japan.
 // Department of Computer Science has dozens of overly-enthusiastic geeks.
 // Join us: http://www.tsukuba.ac.jp/english/admission/
