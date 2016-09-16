@@ -146,7 +146,7 @@
 #define IKE_PAYLOAD_NOTICE				11		// Notification Payload
 #define IKE_PAYLOAD_DELETE				12		// Deletion payload
 #define IKE_PAYLOAD_VENDOR_ID			13		// Vendor ID payload
-#define IKE_PAYLOAD_ATTRIBUTE     14    // Attribute payload. Defined in draft-ietf-ipsec-isakmp-mode-cfg-05.txt
+#define IKE_PAYLOAD_ATTRIBUTE     		14    	// Attribute payload. Defined in draft-ietf-ipsec-isakmp-mode-cfg-05.txt
 #define	IKE_PAYLOAD_NAT_D				20		// NAT-D payload
 #define	IKE_PAYLOAD_NAT_OA				21		// NAT-OA payload
 #define	IKE_PAYLOAD_NAT_D_DRAFT			130		// NAT-D payload draft
@@ -398,6 +398,25 @@ struct IKE_PACKET_TRANSFORM_PAYLOAD
 	UCHAR TransformId;							// Transform ID
 
 	LIST *ValueList;							// Value list
+};
+
+// The type field of the attribute payload as defined by draft-ietf-ipsec-isakmp-mode-cfg-05
+#define ISAKMP_CFG_REQUEST 	1
+#define ISAKMP_CFG_REPLY	2
+#define ISAKMP_CFG_SET		3
+#define ISAKMP_CFG_ACK		4
+
+struct IKE_ATTRIBUTE_HEADER {
+	UCHAR Type;
+	UCHAR Reserved;
+	USHORT Id;
+
+} GCC_PACKED;
+
+struct IKE_PACKET_ATTRIBUTE_PAYLOAD {
+	UCHAR Type;
+	USHORT Id;
+	LIST *Attributes;							// Value list
 };
 
 // IKE packet transform value
@@ -697,8 +716,10 @@ BUF *IkeBuildDataPayload(IKE_PACKET_DATA_PAYLOAD *t);
 BUF *IkeBuildSaPayload(IKE_PACKET_SA_PAYLOAD *t);
 BUF *IkeBuildProposalPayload(IKE_PACKET_PROPOSAL_PAYLOAD *t);
 BUF *IkeBuildTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t);
+BUF *IkeBuildAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t);
 BUF *IkeBuildTransformValue(IKE_PACKET_TRANSFORM_VALUE *v);
 BUF *IkeBuildTransformValueList(LIST *o);
+BUF *IkeBuildAttributePayload(IKE_PACKET_TRANSFORM_PAYLOAD *t);
 BUF *IkeBuildIdPayload(IKE_PACKET_ID_PAYLOAD *t);
 BUF *IkeBuildCertPayload(IKE_PACKET_CERT_PAYLOAD *t);
 BUF *IkeBuildCertRequestPayload(IKE_PACKET_CERT_REQUEST_PAYLOAD *t);

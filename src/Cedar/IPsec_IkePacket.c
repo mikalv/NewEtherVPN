@@ -291,6 +291,32 @@ BUF *IkeBuildProposalPayload(IKE_PACKET_PROPOSAL_PAYLOAD *t)
 	return ret;
 }
 
+// Build a transform payload
+BUF *IkeBuildAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t)
+{
+	IKE_ATTRIBUTE_HEADER h;
+	BUF *ret, *b;
+	// Validate arguments
+	if (t == NULL)
+	{
+		return NULL;
+	}
+
+	Zero(&h, sizeof(h));
+	h.Type = t->Type;
+	h.Id = t->Id;
+
+	ret = NewBuf();
+	WriteBuf(ret, &h, sizeof(h));
+
+	b = IkeBuildTransformValueList(t->Attributes);
+	WriteBufBuf(ret, b);
+
+	FreeBuf(b);
+
+	return ret;
+}
+
 // Build the transform value list
 BUF *IkeBuildTransformValueList(LIST *o)
 {

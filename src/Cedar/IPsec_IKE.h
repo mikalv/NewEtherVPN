@@ -320,6 +320,7 @@ struct IKE_SA
 	bool Deleting;								// Deleting
 	UINT NumResends;							// The number of retransmissions
 	char Secret[MAX_SIZE];						// Secret value of the authentication is successful
+	USHORT NumTransactions;						// Counter for the Transaction exchange messages
 };
 
 // IPsec SA

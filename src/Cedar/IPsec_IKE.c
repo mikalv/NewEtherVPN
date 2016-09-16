@@ -3574,7 +3574,26 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 }
 
 
-void SendXAuthRequest() {
+void SendXAuthRequest(IKE_SERVER *ike, IKE_SA *sa) {
+
+	//IKE_PACKET_TRANSFORM_VALUE *v
+	//IkeBuildTransformValue();
+	//Build a list of data attributes and add empty username and password fields
+	LIST *o;
+	o = NewListFast(NULL);
+	IKE_PACKET_TRANSFORM_VALUE * username = IkeNewTransformValue(16521, 0);
+	Add(o, username);
+	IKE_PACKET_TRANSFORM_VALUE * password = IkeNewTransformValue(16522, 0);
+	Add(o,password);
+
+	// Create an Attribute payload of type "Request" and add the data attributes created previousely to it
+	IKE_PACKET_ATTRIBUTE_PAYLOAD * attributePayload;
+	attributePayload = ZeroMalloc(sizeof(IKE_PACKET_ATTRIBUTE_PAYLOAD));
+	attributePayload->Type = ISAKMP_CFG_REQUEST;
+	attributePayload->Id = sa->NumTransactions++;
+	attributePayload->Attributes = o;
+	BUF *buf;
+	buf = IkeBuildAttributePayload(attributePayload);
 
 }
 
