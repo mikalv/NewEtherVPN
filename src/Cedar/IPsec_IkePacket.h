@@ -267,6 +267,9 @@ struct IKE_TRANSFORM_VALUE
 #define IKE_P1_DH_GROUP_768_MODP			1
 #define IKE_P1_DH_GROUP_1024_MODP			2
 #define IKE_P1_DH_GROUP_1536_MODP			5
+#define IKE_P1_DH_GROUP_2048_MODP                       14
+#define IKE_P1_DH_GROUP_3072_MODP                       15
+#define IKE_P1_DH_GROUP_4096_MODP                       16
 
 // Phase 1: The expiration date type in IKE transform value
 #define IKE_P1_LIFE_TYPE_SECONDS			1
@@ -280,6 +283,9 @@ struct IKE_TRANSFORM_VALUE
 #define IKE_P2_DH_GROUP_768_MODP			1
 #define IKE_P2_DH_GROUP_1024_MODP			2
 #define IKE_P2_DH_GROUP_1536_MODP			5
+#define IKE_P2_DH_GROUP_2048_MODP                       14
+#define IKE_P2_DH_GROUP_3072_MODP                       15
+#define IKE_P2_DH_GROUP_4096_MODP                       16
 
 // Phase 2: The encapsulation mode in IPsec transform value
 #define IKE_P2_CAPSULE_TUNNEL				1
@@ -333,8 +339,9 @@ struct IKE_CERT_REQUEST_HEADER
 
 
 struct IKE_DATA_ATTRIBUTE {
-    USHORT AttributeType;
-} GCC_PACKED;
+    USHORT 	Type;
+    UINT 		Value;
+};
 
 // IKE notification payload header
 struct IKE_NOTICE_HEADER
@@ -405,6 +412,10 @@ struct IKE_PACKET_TRANSFORM_PAYLOAD
 #define ISAKMP_CFG_REPLY	2
 #define ISAKMP_CFG_SET		3
 #define ISAKMP_CFG_ACK		4
+
+#define IKE_ISAKMP_XAUTH_TYPE                   16520
+#define IKE_ISAKMP_XAUTH_USER_NAME              16521
+#define IKE_ISAKMP_XAUTH_USER_PASSWORD          16522
 
 struct IKE_ATTRIBUTE_HEADER {
 	UCHAR Type;
@@ -502,6 +513,7 @@ struct IKE_PACKET_PAYLOAD
 		IKE_PACKET_SA_PAYLOAD Sa;				// SA payload
 		IKE_PACKET_PROPOSAL_PAYLOAD Proposal;	// Proposal payload
 		IKE_PACKET_TRANSFORM_PAYLOAD Transform;	// Transform payload
+		IKE_PACKET_ATTRIBUTE_PAYLOAD Attribute; // Attribute Payload
 		IKE_PACKET_DATA_PAYLOAD KeyExchange;	// Key exchange payload
 		IKE_PACKET_ID_PAYLOAD Id;				// ID payload
 		IKE_PACKET_CERT_PAYLOAD Cert;			// Certificate payload
@@ -571,6 +583,15 @@ struct IKE_P1_KEYSET
 
 #define	IKE_DH_5_ID								2
 #define	IKE_DH_5_STRING							"MODP 1536 (Group 5)"
+
+#define IKE_DH_14_ID                                                             14
+#define IKE_DH_14_STRING                                                 "MODP 2048 (Group 14)"
+
+#define IKE_DH_15_ID                                                             15
+#define IKE_DH_15_STRING                                                 "MODP 3072 (Group 15)"
+
+#define IKE_DH_16_ID                                                             16
+#define IKE_DH_16_STRING                                                 "MODP 4096 (Group 16)"
 
 
 // Encryption algorithm for IKE
@@ -669,6 +690,7 @@ bool IkeParseProposalPayload(IKE_PACKET_PROPOSAL_PAYLOAD *t, BUF *b);
 void IkeFreeProposalPayload(IKE_PACKET_PROPOSAL_PAYLOAD *t);
 bool IkeParseTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t, BUF *b);
 void IkeFreeTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t);
+void IkeFreeAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t);
 LIST *IkeParseTransformValueList(BUF *b);
 void IkeFreeTransformValueList(LIST *o);
 bool IkeParseIdPayload(IKE_PACKET_ID_PAYLOAD *t, BUF *b);
@@ -691,8 +713,10 @@ IKE_PACKET_PAYLOAD *IkeNewDataPayload(UCHAR payload_type, void *data, UINT size)
 IKE_PACKET_PAYLOAD *IkeNewNatOaPayload(UCHAR payload_type, IP *ip);
 IKE_PACKET_PAYLOAD *IkeNewSaPayload(LIST *payload_list);
 IKE_PACKET_PAYLOAD *IkeNewProposalPayload(UCHAR number, UCHAR protocol_id, void *spi, UINT spi_size, LIST *payload_list);
+IKE_PACKET_PAYLOAD *IkeNewAttributePayload(UCHAR type, USHORT id, LIST *attributes);
 IKE_PACKET_PAYLOAD *IkeNewTransformPayload(UCHAR number, UCHAR transform_id, LIST *value_list);
 IKE_PACKET_TRANSFORM_VALUE *IkeNewTransformValue(UCHAR type, UINT value);
+IKE_DATA_ATTRIBUTE *IkeNewDataAttribute(USHORT type, UINT value);
 IKE_PACKET_PAYLOAD *IkeNewIdPayload(UCHAR id_type, UCHAR protocol_id, USHORT port, void *id_data, UINT id_size);
 IKE_PACKET_PAYLOAD *IkeNewCertPayload(UCHAR cert_type, void *cert_data, UINT cert_size);
 IKE_PACKET_PAYLOAD *IkeNewCertRequestPayload(UCHAR cert_type, void *data, UINT size);
@@ -719,7 +743,8 @@ BUF *IkeBuildTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t);
 BUF *IkeBuildAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t);
 BUF *IkeBuildTransformValue(IKE_PACKET_TRANSFORM_VALUE *v);
 BUF *IkeBuildTransformValueList(LIST *o);
-BUF *IkeBuildAttributePayload(IKE_PACKET_TRANSFORM_PAYLOAD *t);
+BUF *IkeBuildDataAttributeValue(IKE_DATA_ATTRIBUTE *v);
+BUF *IkeBuildDataAttributesValueList(LIST *o);
 BUF *IkeBuildIdPayload(IKE_PACKET_ID_PAYLOAD *t);
 BUF *IkeBuildCertPayload(IKE_PACKET_CERT_PAYLOAD *t);
 BUF *IkeBuildCertRequestPayload(IKE_PACKET_CERT_REQUEST_PAYLOAD *t);

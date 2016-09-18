@@ -397,6 +397,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 void ProcIkeQuickModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header);
 void ProcIkeAggressiveModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header);
 void ProcIkeInformationalExchangePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header);
+void ProcIkeTransactionalExchangePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header);
 void FreeIkeSa(IKE_SA *sa);
 void FreeIkeClient(IKE_SERVER *ike, IKE_CLIENT *c);
 UINT64 GenerateNewResponserCookie(IKE_SERVER *ike);
@@ -455,6 +456,7 @@ void MarkIkeClientAsDeleted(IKE_SERVER *ike, IKE_CLIENT *c);
 IKE_SA *GetOtherLatestIkeSa(IKE_SERVER *ike, IKE_SA *sa);
 IPSECSA *GetOtherLatestIPsecSa(IKE_SERVER *ike, IPSECSA *sa);
 void SendInformationalExchangePacket(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload);
+void SendXAuthRequest(IKE_SERVER *ike, IKE_SA *sa);
 void SendInformationalExchangePacketEx(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie);
 void SendDeleteIkeSaPacket(IKE_SERVER *ike, IKE_CLIENT *c, UINT64 init_cookie, UINT64 resp_cookie);
 void SendDeleteIPsecSaPacket(IKE_SERVER *ike, IKE_CLIENT *c, UINT spi);

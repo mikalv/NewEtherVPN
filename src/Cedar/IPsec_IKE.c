@@ -155,7 +155,14 @@ void ProcIKEPacketRecv(IKE_SERVER *ike, UDPPACKET *p)
 		case IKE_EXCHANGE_TYPE_INFORMATION:	// Information exchange
 		  ProcIkeInformationalExchangePacketRecv(ike, p, header);
 			break;
+		case IKE_EXCHANGE_TYPE_TRANSACTION: // Transaction exchange
+		  ProcIkeTransactionalExchangePacketRecv(ike, p, header);
+		  break;
+		default:
+      Debug("Received an IKE packet with an unknown exchange type:%d\n", header->ExchangeType);
+      break;
 		}
+
 
 		IkeFree(header);
 	}
@@ -1443,6 +1450,7 @@ void ProcIkeInformationalExchangePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_P
 {
 	IKE_CLIENT *c;
 	IKE_SA *ike_sa;
+	Debug2("--------------------------------- Started Proc in Informational mode -----------------------------------\n");
 	// Validate arguments
 	if (ike == NULL || p == NULL || header == NULL || header->InitiatorCookie == 0 || header->ResponderCookie == 0
 		|| header->MessageId == 0 || header->FlagEncrypted == false)
@@ -1563,7 +1571,16 @@ void ProcIkeInformationalExchangePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_P
 			IkeFree(pr);
 		}
 	}
+	Debug2("--------------------------------- Finished Proc in Informational mode -----------------------------------\n");
 }
+
+// Information exchange packet reception process
+void ProcIkeTransactionalExchangePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header) {
+  Debug2("--------------------------------- Started Proc in Transactional mode -----------------------------------\n");
+  Debug2("Bloody hell");
+  Debug2("--------------------------------- Started Proc in Transactional mode -----------------------------------\n");
+}
+
 
 // Create a new message ID
 UINT GenerateNewMessageId(IKE_SERVER *ike)
@@ -1825,6 +1842,7 @@ void ProcIkeQuickModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *heade
 {
 	IKE_CLIENT *c;
 	IKE_SA *ike_sa;
+	Debug2("--------------------------------- Started Proc in Quick mode -----------------------------------\n");
 	// Validate arguments
 	if (ike == NULL || p == NULL || header == NULL || header->InitiatorCookie == 0 || header->ResponderCookie == 0
 		|| header->MessageId == 0 || header->FlagEncrypted == false)
@@ -2490,6 +2508,7 @@ void ProcIkeQuickModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *heade
 			}
 		}
 	}
+	Debug2("--------------------------------- Finished Proc in Quick mode -----------------------------------\n");
 }
 
 // Calculate the KEYMAT
@@ -3179,6 +3198,8 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 		return;
 	}
 
+	Debug2("--------------------------------- Started Proc in main mode -----------------------------------\n");
+
 	c = SearchOrCreateNewIkeClientForIkePacket(ike, &p->SrcIP, p->SrcPort, &p->DstIP, p->DestPort, header);
 
 	if (c == NULL)
@@ -3268,7 +3289,6 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 						sa->BlockSize = sa->TransformSetting.Crypto->BlockSize;
 
 						IkeFree(ps);
-						Debug2("----------------------- Done with IKE Packet ---------------\n");
 					}
 					else
 					{
@@ -3554,6 +3574,8 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 							sa->Established = true;
 
 							IPsecLog(ike, NULL, sa, NULL, "LI_IKE_SA_ESTABLISHED");
+							// Send the XAuth transaction
+							SendXAuthRequest(ike, sa);
 						}
 						else
 						{
@@ -3576,24 +3598,54 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 
 void SendXAuthRequest(IKE_SERVER *ike, IKE_SA *sa) {
 
-	//IKE_PACKET_TRANSFORM_VALUE *v
-	//IkeBuildTransformValue();
-	//Build a list of data attributes and add empty username and password fields
-	LIST *o;
-	o = NewListFast(NULL);
-	IKE_PACKET_TRANSFORM_VALUE * username = IkeNewTransformValue(16521, 0);
-	Add(o, username);
-	IKE_PACKET_TRANSFORM_VALUE * password = IkeNewTransformValue(16522, 0);
-	Add(o,password);
+  BUF *attributeBuf;
+  BUF *b;
+  UCHAR initiator_hash[IKE_MAX_HASH_SIZE];
+  IKE_PACKET_PAYLOAD *my_attribute_payload, *my_hash_payload;
+  LIST *payload_list = NewListFast(NULL);
+  IKE_PACKET *ps;
 
-	// Create an Attribute payload of type "Request" and add the data attributes created previousely to it
-	IKE_PACKET_ATTRIBUTE_PAYLOAD * attributePayload;
-	attributePayload = ZeroMalloc(sizeof(IKE_PACKET_ATTRIBUTE_PAYLOAD));
-	attributePayload->Type = ISAKMP_CFG_REQUEST;
-	attributePayload->Id = sa->NumTransactions++;
-	attributePayload->Attributes = o;
-	BUF *buf;
-	buf = IkeBuildAttributePayload(attributePayload);
+  UINT message_id = GenerateNewMessageId(ike);
+  //Build a list of data attributes and add empty username and password fields
+  LIST *o;
+  o = NewListFast(NULL);
+  IKE_DATA_ATTRIBUTE * username = IkeNewDataAttribute(IKE_ISAKMP_XAUTH_USER_NAME, 0);
+  Add(o, username);
+  IKE_DATA_ATTRIBUTE * password = IkeNewDataAttribute(IKE_ISAKMP_XAUTH_USER_PASSWORD, 0);
+  Add(o,password);
+
+  // Create an Attribute payload of type "Request" and add the data attributes created previousely to it
+  my_attribute_payload = IkeNewAttributePayload(ISAKMP_CFG_REQUEST, sa->NumTransactions++, o);
+
+  // Build a hash payload that contains the Attribute payload
+  attributeBuf = IkeBuildAttributePayload(&my_attribute_payload->Payload.Attribute);
+
+  b = NewBuf();
+  WriteBufBuf(b, sa->GXr);
+  WriteBufBuf(b, sa->GXi);
+  WriteBufInt64(b, sa->ResponderCookie);
+  WriteBufInt64(b, sa->InitiatorCookie);
+  WriteBufBuf(b, sa->SAi_b);
+  WriteBufBuf(b, attributeBuf);
+  IkeHMac(sa->TransformSetting.Hash, initiator_hash, sa->SKEYID, sa->HashSize,
+                  b->Buf, b->Size);
+  FreeBuf(b);
+  FreeBuf(attributeBuf);
+
+  my_hash_payload = IkeNewDataPayload(IKE_PAYLOAD_HASH, initiator_hash, sa->HashSize);
+  Add(payload_list, my_hash_payload);
+  Add(payload_list, my_attribute_payload);
+
+
+
+  Debug2("Sending xauth transaction exchange with id:%d\n", message_id);
+  ps = IkeNew(sa->InitiatorCookie, sa->ResponderCookie, IKE_EXCHANGE_TYPE_TRANSACTION, true, false,
+    false, message_id, payload_list);
+
+  // Transmission
+  IkeSaSendPacket(ike, sa, ps);
+
+  IkeFree(ps);
 
 }
 
@@ -4916,6 +4968,8 @@ IKE_PACKET_PAYLOAD *TransformSettingToTransformPayloadForIke(IKE_SERVER *ike, IK
 	Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_HASH, setting->HashId));
 	if (caps.XAuth && setting->AuthenticationMethod == IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED) {
 	  Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED));
+	} else if (caps.XAuth && setting->AuthenticationMethod == IKE_P1_AUTH_METHOD_XAUTH_RESP_PRESHARED) {
+	  Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, IKE_P1_AUTH_METHOD_XAUTH_RESP_PRESHARED));
 	} else if (setting->AuthenticationMethod == IKE_P1_AUTH_METHOD_PRESHAREDKEY) {
 	  Add(value_list, IkeNewTransformValue(IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, IKE_P1_AUTH_METHOD_PRESHAREDKEY));
 	}
@@ -5061,7 +5115,8 @@ bool TransformPayloadToTransformSettingForIkeSa(IKE_SERVER *ike, IKE_PACKET_TRAN
 
 	UINT authenticationMethod = IkeGetTransformValue(transform, IKE_TRANSFORM_VALUE_P1_AUTH_METHOD, 0);
 	if (authenticationMethod != IKE_P1_AUTH_METHOD_PRESHAREDKEY &&
-	    (authenticationMethod != IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED || !caps.XAuth))
+	    (authenticationMethod != IKE_P1_AUTH_METHOD_XAUTH_INIT_PRESHARED || !caps.XAuth) &&
+	    (authenticationMethod != IKE_P1_AUTH_METHOD_XAUTH_RESP_PRESHARED || !caps.XAuth))
 	{
 		// Only PSK authentication method is supported
 		return false;

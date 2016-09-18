@@ -291,7 +291,7 @@ BUF *IkeBuildProposalPayload(IKE_PACKET_PROPOSAL_PAYLOAD *t)
 	return ret;
 }
 
-// Build a transform payload
+// Build an attribute payload
 BUF *IkeBuildAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t)
 {
 	IKE_ATTRIBUTE_HEADER h;
@@ -309,12 +309,38 @@ BUF *IkeBuildAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t)
 	ret = NewBuf();
 	WriteBuf(ret, &h, sizeof(h));
 
-	b = IkeBuildTransformValueList(t->Attributes);
+	b = IkeBuildDataAttributesValueList(t->Attributes);
 	WriteBufBuf(ret, b);
 
 	FreeBuf(b);
 
 	return ret;
+}
+
+// Build the transform value list
+BUF *IkeBuildDataAttributesValueList(LIST *o)
+{
+	BUF *b;
+	UINT i;
+	// Validate arguments
+	if (o == NULL)
+	{
+		return NULL;
+	}
+
+	b = NewBuf();
+
+	for (i = 0;i < LIST_NUM(o);i++)
+	{
+		IKE_DATA_ATTRIBUTE *v = LIST_DATA(o, i);
+		BUF *tmp = IkeBuildDataAttributeValue(v);
+
+		WriteBufBuf(b, tmp);
+
+		FreeBuf(tmp);
+	}
+
+	return b;
 }
 
 // Build the transform value list
@@ -382,6 +408,54 @@ BUF *IkeBuildTransformValue(IKE_PACKET_TRANSFORM_VALUE *v)
 	}
 
 	return b;
+}
+
+// Build a data attribute value
+BUF *IkeBuildDataAttributeValue(IKE_DATA_ATTRIBUTE *v)
+{
+		BUF *b;
+		UCHAR af_bit, type;
+		USHORT size_or_value;
+		// Validate arguments
+		if (v == NULL)
+		{
+			return NULL;
+		}
+
+		type = v->Type;
+
+		if (v->Value >= 65536)
+		{
+			// 32 bit
+			af_bit = 0;
+			size_or_value = Endian16(sizeof(UINT));
+		}
+		else
+		{
+			// 16 bit
+			if (v->Type > 16383) {
+					// The Type length is 2 bytes. Write the 8 most significant bits to af_bit
+					af_bit = 0x80 | 0x40;
+			} else {
+					// The type length is 1 byte. We will just append it after the af_bit
+					af_bit = 0x80;
+			}
+
+			size_or_value = Endian16((USHORT)v->Value);
+		}
+
+		b = NewBuf();
+		WriteBuf(b, &af_bit, sizeof(af_bit));
+		WriteBuf(b, &type, sizeof(type));
+		WriteBuf(b, &size_or_value, sizeof(size_or_value));
+
+		if (af_bit == 0)
+		{
+			UINT value = Endian32(v->Value);
+			WriteBuf(b, &value, sizeof(UINT));
+		}
+
+		return b;
 }
 
 // Build a transform payload
@@ -687,6 +761,9 @@ BUF *IkeBuildPayload(IKE_PACKET_PAYLOAD *p)
 		b = IkeBuildNatOaPayload(&p->Payload.NatOa);
 		break;
 
+	case IKE_PAYLOAD_ATTRIBUTE:
+	  b = IkeBuildAttributePayload(&p->Payload.Attribute);
+	  break;
 	case IKE_PAYLOAD_KEY_EXCHANGE:		// Key exchange payload
 	case IKE_PAYLOAD_HASH:				// Hash payload
 	case IKE_PAYLOAD_SIGN:				// Signature payload
@@ -994,6 +1071,21 @@ IKE_PACKET_PAYLOAD *IkeNewCertPayload(UCHAR cert_type, void *cert_data, UINT cer
 	p->Payload.Cert.CertData = MemToBuf(cert_data, cert_size);
 
 	return p;
+}
+
+// Create an Attribute Payload
+IKE_PACKET_PAYLOAD *IkeNewAttributePayload(UCHAR type, USHORT id, LIST *attributes) {
+
+  IKE_PACKET_PAYLOAD *p;
+  if (attributes == NULL) {
+    return NULL;
+  }
+  p = IkeNewPayload(IKE_PAYLOAD_ATTRIBUTE);
+
+  p->Payload.Attribute.Type = type;
+  p->Payload.Attribute.Id = id;
+  p->Payload.Attribute.Attributes = attributes;
+  return p;
 }
 
 // Create an ID payload
@@ -1346,6 +1438,14 @@ IKE_PACKET_TRANSFORM_VALUE *IkeNewTransformValue(UCHAR type, UINT value)
 	return v;
 }
 
+IKE_DATA_ATTRIBUTE *IkeNewDataAttribute(USHORT type, UINT value) {
+
+	IKE_DATA_ATTRIBUTE *v = ZeroMalloc(sizeof(IKE_DATA_ATTRIBUTE));
+	v->Type = type;
+	v->Value = value;
+
+	return v;
+}
 // Parse the transform value list
 LIST *IkeParseTransformValueList(BUF *b)
 {
@@ -1475,6 +1575,22 @@ void IkeFreeTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t)
 		IkeFreeTransformValueList(t->ValueList);
 		t->ValueList = NULL;
 	}
+}
+
+// Release the attribute payload
+void IkeFreeAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t)
+{
+  // Validate arguments
+  if (t == NULL)
+  {
+    return;
+  }
+
+  if (t->Attributes != NULL)
+  {
+    IkeFreeTransformValueList(t->Attributes);
+    t->Attributes = NULL;
+  }
 }
 
 // Parse the ID payload
@@ -1943,6 +2059,10 @@ void IkeFreePayload(IKE_PACKET_PAYLOAD *p)
 	case IKE_PAYLOAD_TRANSFORM:			// Proposal payload
 		IkeFreeTransformPayload(&p->Payload.Transform);
 		break;
+
+	case IKE_PAYLOAD_ATTRIBUTE:
+	  IkeFreeAttributePayload(&p->Payload.Attribute);
+	  break;
 
 	case IKE_PAYLOAD_ID:					// ID payload
 		IkeFreeIdPayload(&p->Payload.Id);
@@ -2607,7 +2727,7 @@ IKE_ENGINE *NewIkeEngine()
 	IKE_ENGINE *e = ZeroMalloc(sizeof(IKE_ENGINE));
 	IKE_CRYPTO *des, *des3, *aes;
 	IKE_HASH *sha1, *md5;
-	IKE_DH *dh1, *dh2, *dh5;
+	IKE_DH *dh1, *dh2, *dh5, *dh14, *dh15, *dh16;
 	UINT des_key_sizes[] =
 	{
 		8,
@@ -2649,6 +2769,9 @@ IKE_ENGINE *NewIkeEngine()
 	dh1 = NewIkeDh(e, IKE_DH_1_ID, IKE_DH_1_STRING, 96);
 	dh2 = NewIkeDh(e, IKE_DH_2_ID, IKE_DH_2_STRING, 128);
 	dh5 = NewIkeDh(e, IKE_DH_5_ID, IKE_DH_5_STRING, 192);
+	dh14 = NewIkeDh(e, IKE_DH_14_ID, IKE_DH_14_STRING, 256);
+	dh15 = NewIkeDh(e, IKE_DH_15_ID, IKE_DH_15_STRING, 384);
+	dh16 = NewIkeDh(e, IKE_DH_16_ID, IKE_DH_16_STRING, 512);
 
 	// Define the IKE algorithm
 	e->IkeCryptos[IKE_P1_CRYPTO_DES_CBC] = des;
@@ -2668,6 +2791,9 @@ IKE_ENGINE *NewIkeEngine()
 	e->IkeDhs[IKE_P1_DH_GROUP_768_MODP] = e->EspDhs[IKE_P2_DH_GROUP_768_MODP] = dh1;
 	e->IkeDhs[IKE_P1_DH_GROUP_1024_MODP] = e->EspDhs[IKE_P2_DH_GROUP_1024_MODP] = dh2;
 	e->IkeDhs[IKE_P1_DH_GROUP_1536_MODP] = e->EspDhs[IKE_P2_DH_GROUP_1536_MODP] = dh5;
+	e->IkeDhs[IKE_P1_DH_GROUP_2048_MODP] = e->EspDhs[IKE_P2_DH_GROUP_2048_MODP] = dh14;
+	e->IkeDhs[IKE_P1_DH_GROUP_3072_MODP] = e->EspDhs[IKE_P2_DH_GROUP_3072_MODP] = dh15;
+	e->IkeDhs[IKE_P1_DH_GROUP_4096_MODP] = e->EspDhs[IKE_P2_DH_GROUP_4096_MODP] = dh16;
 
 	return e;
 }
@@ -3180,7 +3306,16 @@ DH_CTX *IkeDhNewCtx(IKE_DH *d)
 
 	case IKE_DH_5_ID:
 		return DhNewGroup5();
-	}
+
+        case IKE_DH_14_ID:
+                return DhNewGroup14();
+
+        case IKE_DH_15_ID:
+                return DhNewGroup15();
+
+        case IKE_DH_16_ID:
+                return DhNewGroup16();
+        }
 
 	return NULL;
 }
@@ -3400,7 +3535,7 @@ char *ikeTransformP1AuthMethodToString(UINT authMethod) {
     case IKE_P1_AUTH_METHOD_XAUTH_RESP_RSANCRYPTION:
       return "XAUTH_RESP_RSANCRYPTION";
     default:
-      return "UNKNOWN_AUTH_METHOD";
+      return CopyFormat("UNKNOWN_AUTH_METHOD:%d", authMethod);
   }
 }
 
@@ -3412,6 +3547,12 @@ char *ikeTransformP1DhGroupToString(UINT dhGroup) {
       return "1024_MODP";
     case IKE_P1_DH_GROUP_1536_MODP:
       return "1536_MODP";
+    case IKE_P1_DH_GROUP_2048_MODP:
+          return "2048_MODP";
+    case IKE_P1_DH_GROUP_3072_MODP:
+          return "3072_MODP";
+    case IKE_P1_DH_GROUP_4096_MODP:
+          return "4096_MODP";
     default:
       return CopyFormat("UNKNOWN_DH_GROUP:%d", dhGroup);
   }

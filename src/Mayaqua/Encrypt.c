@@ -4903,6 +4903,24 @@ DH_CTX *DhNewGroup5()
 	return DhNew(DH_GROUP5_PRIME_1536, 2);
 }
 
+// Creating a DH GROUP5
+DH_CTX *DhNewGroup14()
+{
+        return DhNew(DH_GROUP5_PRIME_2048, 2);
+}
+
+// Creating a DH GROUP5
+DH_CTX *DhNewGroup15()
+{
+        return DhNew(DH_GROUP5_PRIME_3072, 2);
+}
+
+// Creating a DH GROUP5
+DH_CTX *DhNewGroup16()
+{
+        return DhNew(DH_GROUP5_PRIME_4096, 2);
+}
+
 // Creating a DH SIMPLE 160bits
 DH_CTX *DhNewSimple160()
 {
