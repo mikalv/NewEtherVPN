@@ -188,6 +188,7 @@ bool IsSafeStr(char *str);
 void EnSafeStr(char *str, char replace);
 void TruncateCharFromStr(char *str, char replace);
 char *CopyStr(char *str);
+void BinToBeutifulHex(char *str, UINT str_size, void *data, UINT data_size);
 void BinToStr(char *str, UINT str_size, void *data, UINT data_size);
 void BinToStrW(wchar_t *str, UINT str_size, void *data, UINT data_size);
 void PrintBin(void *data, UINT size);

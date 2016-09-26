@@ -1970,6 +1970,70 @@ void BinToStrEx(char *str, UINT str_size, void *data, UINT data_size)
 	// Memory release
 	Free(tmp);
 }
+
+/**
+ * Just dump the contents of the binary string as is
+ */
+void BinToBeutifulHex(char *str, UINT str_size, void *data, UINT data_size)
+{
+	char *tmp;
+	UCHAR *buf = (UCHAR *)data;
+	UINT size;
+	UINT numLines;
+	UINT i,j;
+	// Validate arguments
+	if (str == NULL || data == NULL)
+	{
+		return;
+	}
+
+	UINT entriesPerLine = 16;
+
+	// Create multiple lines to dump the data. each line contains 16hex and 16chars
+	numLines = data_size / entriesPerLine;
+	if ( (data_size % entriesPerLine != 0 && data_size > entriesPerLine )|| data_size < entriesPerLine) {
+		numLines++;
+	}
+
+	// Calculation of size: Hex Representation + 2xspace + Char representation + new line
+	size = data_size * 3 + numLines * 3 + data_size + numLines * 3;
+	// Memory allocation
+	tmp = ZeroMalloc(size);
+
+	// Conversion
+	UINT index = 0;
+	UINT cursor = 0;
+	for (i = 0; i < numLines; i++) {
+		for (j = 0; j < entriesPerLine; j++) {
+			if (index >= data_size) break;
+			Format(&tmp[cursor], 0, "%02X ", buf[index]);
+			cursor += 3;
+			index++;
+		}
+		Format(&tmp[cursor], 2, " ");
+		cursor++;
+		index -= entriesPerLine;
+		for (j = 0; j < entriesPerLine; j++) {
+			long l = buf[index];
+			if (l > 32 && l <127) {
+				tmp[cursor] = buf[index];
+			} else {
+				tmp[cursor] = '.';
+			}
+			cursor++;
+			index++;
+		}
+		Format(&tmp[cursor], 2, "\n");
+		cursor+= 1;
+	}
+
+	Trim(tmp);
+	// Copy
+	StrCpy(str, str_size, tmp);
+	// Memory release
+	Free(tmp);
+}
+
 void BinToStrEx2(char *str, UINT str_size, void *data, UINT data_size, char padding_char)
 {
 	char *tmp;
