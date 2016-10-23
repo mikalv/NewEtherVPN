@@ -1333,12 +1333,34 @@ void SendDeleteIkeSaPacket(IKE_SERVER *ike, IKE_CLIENT *c, UINT64 init_cookie, U
 	SendInformationalExchangePacket(ike, c, payload);
 }
 
-// Information exchange packet transmission process
-void SendInformationalExchangePacket(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload)
-{
+void SendInformationalExchangePacket(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload) {
 	SendInformationalExchangePacketEx(ike, c, payload, false, 0, 0);
 }
+// Information exchange packet transmission process
 void SendInformationalExchangePacketEx(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie)
+ {
+      Debug2("--------------------------------- Start Sending Information Message -----------------------------------\n");
+      SendExchangePacketEx(IKE_EXCHANGE_TYPE_INFORMATION, ike, c, payload, force_plain, init_cookie, resp_cookie);
+      Debug2("--------------------------------- Finished Sending Information Message -----------------------------------\n");
+ }
+// Transaction exchange packet transmission process
+void SendTransactionalExchangePacket(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload)
+{
+      SendTransactionalExchangePacketEx(ike, c, payload, false, 0, 0);
+}
+
+void SendTransactionalExchangePacketEx(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie) {
+       Debug2("--------------------------------- Start Sending Transaction Message -----------------------------------\n");
+       SendExchangePacketEx(IKE_EXCHANGE_TYPE_TRANSACTION, ike, c, payload, force_plain, init_cookie, resp_cookie);
+       Debug2("--------------------------------- Finished Sending Information Message -----------------------------------\n");
+}
+
+void SendExchangePacket(UINT type, IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload) {
+       SendExchangePacketEx(type, ike, c, payload, false, 0, 0);
+}
+
+
+void SendExchangePacketEx(UINT type, IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie)
 {
 	IKE_SA *sa;
 	IKE_PACKET *ps;
@@ -1391,9 +1413,18 @@ void SendInformationalExchangePacketEx(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKE
 	Add(payload_list, payload);
 
 	// Packet creation
+
+	switch(type) {
+	  case IKE_EXCHANGE_TYPE_INFORMATION:
+	  case IKE_EXCHANGE_TYPE_TRANSACTION:
+		  break;
+	  default:
+        Debug("SendExchangePacketEx() Unknown exchange type:%d\n", type);
+		return;
+	  }
+
 	ps = IkeNew((plain ? init_cookie : sa->InitiatorCookie), (plain ? resp_cookie : sa->ResponderCookie),
-		IKE_EXCHANGE_TYPE_INFORMATION, false, false, false,
-		GenerateNewMessageId(ike), payload_list);
+	    type, false, false, false, GenerateNewMessageId(ike), payload_list);
 
 	if (plain == false)
 	{
@@ -1577,8 +1608,162 @@ void ProcIkeInformationalExchangePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_P
 // Information exchange packet reception process
 void ProcIkeTransactionalExchangePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header) {
   Debug2("--------------------------------- Started Proc in Transactional mode -----------------------------------\n");
-  Debug2("Bloody hell");
-  Debug2("--------------------------------- Started Proc in Transactional mode -----------------------------------\n");
+  char dumpedPacket[p->Size * 10];
+        BinToBeutifulHex(dumpedPacket, sizeof(dumpedPacket), p->Data, p->Size);
+        Debug("Received packet:\nSize=%d Bytes\n%s\n", p->Size, dumpedPacket);
+
+        IKE_CLIENT *c;
+        IKE_SA *ike_sa;
+
+        // Validate arguments
+        if (ike == NULL || p == NULL || header == NULL || header->InitiatorCookie == 0 || header->ResponderCookie == 0
+                || header->MessageId == 0 || header->FlagEncrypted == false)
+        {
+                return;
+        }
+
+        c = SearchOrCreateNewIkeClientForIkePacket(ike, &p->SrcIP, p->SrcPort, &p->DstIP, p->DestPort, header);
+
+        if (c == NULL)
+        {
+                return;
+        }
+
+        ike_sa = FindIkeSaByResponderCookieAndClient(ike, header->ResponderCookie, c);
+
+        if (ike_sa != NULL && ike_sa->Established)
+        {
+                IKE_PACKET *pr;
+                IKE_CRYPTO_PARAM cp;
+
+                // Packet decoding
+                Zero(&cp, sizeof(cp));
+                cp.Key = ike_sa->CryptoKey;
+                IkeCalcPhase2InitialIv(cp.Iv, ike_sa, header->MessageId);
+
+                pr = IkeParse(p->Data, p->Size, &cp);
+        #ifdef  RAW_DEBUG
+                IkeDebugUdpSendRawPacket(pr);
+        #endif  // RAW_DEBUG
+                if (pr != NULL)
+                {
+                        // Get the hash payload
+                        IKE_PACKET_PAYLOAD *hash_payload;
+
+                        hash_payload = IkeGetPayload(pr->PayloadList, IKE_PAYLOAD_HASH, 0);
+                        if (hash_payload != NULL)
+                        {
+                                // Get the payload after the hash
+                              UINT header_and_hash_size = sizeof(IKE_COMMON_HEADER) + hash_payload->BitArray->Size;
+                              void *after_hash_data = ((UCHAR *)pr->DecryptedPayload->Buf)+ header_and_hash_size;
+                                if (pr->DecryptedPayload->Size > header_and_hash_size)
+                                {
+                                        UINT after_hash_size = pr->DecryptedPayload->Size - header_and_hash_size;
+                                        UCHAR hash1[IKE_MAX_HASH_SIZE];
+                                        BUF *hash1_buf;
+
+                                        hash1_buf = NewBuf();
+                                        WriteBufInt(hash1_buf, header->MessageId);
+                                        WriteBuf(hash1_buf, after_hash_data, after_hash_size);
+
+                                        IkeHMac(ike_sa->TransformSetting.Hash, hash1, ike_sa->SKEYID_a, ike_sa->HashSize,
+                                                hash1_buf->Buf, hash1_buf->Size);
+
+                                        // Compare the hash value
+                                        if (IkeCompareHash(hash_payload, hash1, ike_sa->HashSize))
+                                        {
+                                                UINT i, num;
+                                                // Handle the deletion payload
+                                                num = IkeGetPayloadNum(pr->PayloadList, IKE_PAYLOAD_DELETE);
+                                                for (i = 0;i < num;i)
+                                                {
+                                                        IKE_PACKET_PAYLOAD *payload = IkeGetPayload(pr->PayloadList, IKE_PAYLOAD_DELETE, i);
+                                                        IKE_PACKET_DELETE_PAYLOAD *del = &payload->Payload.Delete;
+
+                                                        ProcDeletePayload(ike, c, del);
+                                                }
+
+                                                num = IkeGetPayloadNum(pr->PayloadList, IKE_PAYLOAD_ATTRIBUTE);
+                                                for (i = 0;i < num;i++)
+                                                {
+                                                        IKE_PACKET_PAYLOAD *payload = IkeGetPayload(pr->PayloadList, IKE_PAYLOAD_ATTRIBUTE, i);
+                                                        IKE_PACKET_ATTRIBUTE_PAYLOAD *attr = &payload->Payload.Attribute;
+
+                                                        LIST *attributes;
+                                                        attributes = attr->Attributes;
+                                                        UINT j, numAttributes = LIST_NUM(attributes);
+                                                        for (j = 0;j < numAttributes; j++) {
+                                                               IKE_DATA_ATTRIBUTE *attr = LIST_DATA(attributes, j);
+                                                               Debug("Reading attribute: key=%d, value=%d\n", attr->Type, attr->Value);
+                                                       }
+
+                                                       /*
+                                                       o = NewListFast(NULL);
+                                                       IKE_DATA_ATTRIBUTE * username = IkeNewDataAttribute(IKE_ISAKMP_XAUTH_USER_NAME, 0);
+                                                      Add(o, username);
+                                                      IKE_DATA_ATTRIBUTE * password = IkeNewDataAttribute(IKE_ISAKMP_XAUTH_USER_PASSWORD, 0);
+                                                      Add(o,password);
+
+                                                      IKE_SA * sa = c->CurrentIkeSa;
+                                                      // Create an Attribute payload of type "Request" and add the data attributes created previously to it
+                                                      my_attribute_payload = IkeNewAttributePayload(ISAKMP_CFG_REQUEST, sa->NumTransactions++, o);*/
+                                              }
+
+                                              num = IkeGetPayloadNum(pr->PayloadList, IKE_PAYLOAD_NOTICE);
+                                              // Handle the notification payload
+                                              for (i = 0;i < num;i++)
+                                              {
+                                                      IKE_PACKET_PAYLOAD *payload = IkeGetPayload(pr->PayloadList, IKE_PAYLOAD_NOTICE, i);
+                                                      IKE_PACKET_NOTICE_PAYLOAD *n = &payload->Payload.Notice;
+
+                                                      if (n->MessageType == IKE_NOTICE_DPD_REQUEST || n->MessageType == IKE_NOTICE_DPD_RESPONSE)
+                                                      {
+                                                              if (n->MessageData != NULL && n->MessageData->Size == sizeof(UINT))
+                                                              {
+                                                                      UINT seq_no = READ_UINT(n->MessageData->Buf);
+
+                                                                      if (n->Spi->Size == (sizeof(UINT64) * 2))
+                                                                      {
+                                                                              UINT64 init_cookie = READ_UINT64(((UCHAR *)n->Spi->Buf));
+                                                                              UINT64 resp_cookie = READ_UINT64(((UCHAR *)n->Spi->Buf) + sizeof(UINT64));
+
+                                                                              if (init_cookie != 0 && resp_cookie != 0)
+                                                                              {
+                                                                                      IKE_SA *found_ike_sa = SearchIkeSaByCookie(ike, init_cookie, resp_cookie);
+
+                                                                                      if (found_ike_sa != NULL && found_ike_sa->IkeClient == c)
+                                                                                      {
+                                                                                              if (n->MessageType == IKE_NOTICE_DPD_REQUEST)
+                                                                                              {
+                                                                                                      // Return the DPD Response (ACK) for the DPD Request
+                                                                                                      SendInformationalExchangePacket(ike, c,
+                                                                                                              IkeNewNoticeDpdPayload(true, init_cookie, resp_cookie,
+                                                                                                              seq_no));
+                                                                                              }
+
+                                                                                              // Update the status of the IKE SA
+                                                                                              found_ike_sa->LastCommTick = ike->Now;
+                                                                                              ike_sa->LastCommTick = ike->Now;
+                                                                                              found_ike_sa->IkeClient->LastCommTick = ike->Now;
+                                                                                              ike_sa->IkeClient->LastCommTick = ike->Now;
+                                                                                              ike_sa->IkeClient->CurrentIkeSa = ike_sa;
+                                                                                      }
+                                                                              }
+                                                                      }
+                                                              }
+                                                      }
+                                              }
+                                      }
+
+                                      FreeBuf(hash1_buf);
+                              }
+                      }
+
+                      IkeFree(pr);
+              }
+      }
+
+  Debug2("--------------------------------- Ended Proc in Transactional mode -----------------------------------\n");
 }
 
 
@@ -1633,6 +1818,7 @@ void StartQuickMode(IKE_SERVER *ike, IKE_CLIENT *c)
 		return;
 	}
 
+	ike_sa = c->CurrentIkeSa;
 	if (IsZero(&c->CachedTransformSetting, sizeof(IPSEC_SA_TRANSFORM_SETTING)))
 	{
 		// Cached transform setting does not exist
@@ -1640,7 +1826,7 @@ void StartQuickMode(IKE_SERVER *ike, IKE_CLIENT *c)
 		return;
 	}
 
-	ike_sa = c->CurrentIkeSa;
+
 	if (ike_sa == NULL)
 	{
 		return;
@@ -3081,7 +3267,7 @@ void ProcIkeAggressiveModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *
 								WriteBuf(iv_buf, dh->MyPublicKey->Buf, dh->MyPublicKey->Size);
 								IkeHash(sa->TransformSetting.Hash, iv_hashed_data, iv_buf->Buf, iv_buf->Size);
 
-								BinToStrEx(tmp, sizeof(tmp), iv_hashed_data, sa->BlockSize);
+								BinToBeutifulHex(tmp, sizeof(tmp), iv_hashed_data, sa->BlockSize);
 								Debug("Initial IV: %s\n", tmp);
 
 								IkeSaUpdateIv(sa, iv_hashed_data, sa->HashSize);
@@ -3201,6 +3387,9 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 	Debug2("--------------------------------- Started Proc in main mode -----------------------------------\n");
 
 	c = SearchOrCreateNewIkeClientForIkePacket(ike, &p->SrcIP, p->SrcPort, &p->DstIP, p->DestPort, header);
+	char dumpedPacket[p->Size * 10];
+	BinToBeutifulHex(dumpedPacket, sizeof(dumpedPacket), p->Data, p->Size);
+	Debug("ProcIkeMainModePacketRecv(): Received packet:\nSize=%d Bytes\n%s\n", p->Size, dumpedPacket);
 
 	if (c == NULL)
 	{
@@ -3210,6 +3399,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 
 	if (header->ResponderCookie == 0)
 	{
+		Debug2("Starting ISAKMP in state 1\n");
 		// Start process of the state 1
 		IKE_CAPS caps;
 		IKE_SA *sa;
@@ -3253,9 +3443,14 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 						// Create an IKE SA
 						sa = NewIkeSa(ike, c, header->InitiatorCookie, IKE_SA_MAIN_MODE, &setting);
 
+						sa->Xauthenticated = false;
+						sa->NumTransactions = 0;
+
 						Copy(&sa->Caps, &caps, sizeof(IKE_CAPS));
 
 						Insert(ike->IkeSaList, sa);
+						IKE_SA * sa = c->CurrentIkeSa;
+
 
 						// Answer the SA parameter selection results
 						sa->State = IKE_SA_MM_STATE_1_SA;
@@ -3337,6 +3532,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 			switch (sa->State)
 			{
 			case IKE_SA_MM_STATE_1_SA:
+				Debug2("Starting ISAKMP in state 2\n");
 				pr = IkeSaRecvPacket(ike, sa, p->Data, p->Size);
 				if (pr != NULL)
 				{
@@ -3444,7 +3640,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 							WriteBuf(iv_buf, dh->MyPublicKey->Buf, dh->MyPublicKey->Size);
 							IkeHash(sa->TransformSetting.Hash, iv_hashed_data, iv_buf->Buf, iv_buf->Size);
 
-							BinToStrEx(tmp, sizeof(tmp), iv_hashed_data, sa->BlockSize);
+							BinToBeutifulHex(tmp, sizeof(tmp), iv_hashed_data, sa->BlockSize);
 							Debug("Initial IV: %s\n", tmp);
 
 							IkeSaUpdateIv(sa, iv_hashed_data, sa->HashSize);
@@ -3478,6 +3674,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 				break;
 
 			case IKE_SA_MM_STATE_2_KEY:
+				Debug2("Starting ISAKMP in state 3\n");
 				pr = IkeSaRecvPacket(ike, sa, p->Data, p->Size);
 				if (pr != NULL && pr->FlagEncrypted)
 				{
@@ -3596,7 +3793,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 }
 
 
-void SendXAuthRequest(IKE_SERVER *ike, IKE_SA *sa) {
+/*void SendXAuthRequest(IKE_SERVER *ike, IKE_SA *sa) {
 
   BUF *attributeBuf;
   BUF *b;
@@ -3647,6 +3844,27 @@ void SendXAuthRequest(IKE_SERVER *ike, IKE_SA *sa) {
 
   IkeFree(ps);
 
+}*/
+
+void SendXAuthRequest(IKE_SERVER *ike, IKE_CLIENT *c) {
+
+  IKE_PACKET_PAYLOAD *my_attribute_payload;
+
+  Debug2("Sending xauth transaction exchange\n");
+
+  //Build a list of data attributes and add empty username and password fields
+  LIST *o;
+  o = NewListFast(NULL);
+  IKE_DATA_ATTRIBUTE * username = IkeNewDataAttribute(IKE_ISAKMP_XAUTH_USER_NAME, 0);
+  Add(o, username);
+  IKE_DATA_ATTRIBUTE * password = IkeNewDataAttribute(IKE_ISAKMP_XAUTH_USER_PASSWORD, 0);
+  Add(o,password);
+
+  IKE_SA * sa = c->CurrentIkeSa;
+  // Create an Attribute payload of type "Request" and add the data attributes created previously to it
+  my_attribute_payload = IkeNewAttributePayload(ISAKMP_CFG_REQUEST, sa->NumTransactions++, o);
+
+  SendTransactionalExchangePacket(ike, c, my_attribute_payload);
 }
 
 
@@ -4061,7 +4279,13 @@ IKE_PACKET *IkeSaRecvPacket(IKE_SERVER *ike, IKE_SA *sa, void *data, UINT size)
 
 		if (ret->FlagEncrypted)
 		{
+			char ivDump[sa->BlockSize * 10];
+			BinToBeutifulHex(ivDump, sizeof(ivDump), sa->Iv, sa->BlockSize);
+			Debug("IV => size=%d\n%s\n", sa->BlockSize, ivDump);
 			IkeSaUpdateIv(sa, cp.NextIv, sa->BlockSize);
+			BinToBeutifulHex(ivDump, sizeof(ivDump), cp.NextIv, sa->BlockSize);
+			Debug("Next IV => size=%d\n%s\n", sa->BlockSize, ivDump);
+
 		}
 	}
 
@@ -4191,7 +4415,12 @@ void IkeSaSendPacket(IKE_SERVER *ike, IKE_SA *sa, IKE_PACKET *p)
 
 		buf = IkeBuild(p, &cp);
 
+		char ivDump[sa->BlockSize * 10];
+		BinToBeutifulHex(ivDump, sizeof(ivDump), sa->Iv, sa->BlockSize);
+		Debug("IV => size=%d\n%s\n", sa->BlockSize, ivDump);
 		IkeSaUpdateIv(sa, cp.NextIv, sa->BlockSize);
+		BinToBeutifulHex(ivDump, sizeof(ivDump), cp.NextIv, sa->BlockSize);
+		Debug("Next IV => size=%d\n%s\n", sa->BlockSize, ivDump);
 	}
 
 	if (buf == NULL)
@@ -4230,6 +4459,9 @@ void IkeSendUdpPacket(IKE_SERVER *ike, UINT type, IP *server_ip, UINT server_por
 	}
 
 	p = NewUdpPacket(server_ip, server_port, client_ip, client_port, data, size);
+	char tmp[p->Size * 10];
+	BinToBeutifulHex(tmp, sizeof(tmp), p->Data, p->Size);
+	Debug("Sending UDP packet:\nSize=%d Bytes\n%s\n", p->Size, tmp);
 
 	p->Type = type;
 

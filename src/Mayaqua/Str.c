@@ -2004,6 +2004,15 @@ void BinToBeutifulHex(char *str, UINT str_size, void *data, UINT data_size)
 	UINT index = 0;
 	UINT cursor = 0;
 	for (i = 0; i < numLines; i++) {
+		UINT startIndex = i * entriesPerLine;
+		if (startIndex < 100) {
+			Format(&tmp[cursor], 4, "%02d: ", startIndex);
+			cursor+=3;
+		} else if (startIndex >= 100) {
+			Format(&tmp[cursor], 5, "%03d: ", startIndex);
+			cursor+=4;
+		}
+
 		for (j = 0; j < entriesPerLine; j++) {
 			if (index >= data_size) break;
 			Format(&tmp[cursor], 0, "%02X ", buf[index]);
@@ -2012,8 +2021,14 @@ void BinToBeutifulHex(char *str, UINT str_size, void *data, UINT data_size)
 		}
 		Format(&tmp[cursor], 2, " ");
 		cursor++;
-		index -= entriesPerLine;
+		if (index > entriesPerLine) {
+			index -= entriesPerLine;
+		} else {
+			index = 0;
+		}
+
 		for (j = 0; j < entriesPerLine; j++) {
+			if (index >= data_size) break;
 			long l = buf[index];
 			if (l > 32 && l <127) {
 				tmp[cursor] = buf[index];

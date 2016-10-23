@@ -252,6 +252,9 @@ struct IKE_TRANSFORM_VALUE
 // Phase 1: The hash algorithm in IKE transform value
 #define	IKE_P1_HASH_MD5						1
 #define IKE_P1_HASH_SHA1					2
+#define IKE_P1_HASH_SHA256			4
+#define IKE_P1_HASH_SHA384			5
+#define IKE_P1_HASH_SHA512			6
 
 // Phase 1: The authentication method in the IKE transform value
 #define IKE_P1_AUTH_METHOD_PRESHAREDKEY		                    1
@@ -573,6 +576,16 @@ struct IKE_P1_KEYSET
 
 #define	IKE_HASH_SHA1_ID						1
 #define	IKE_HASH_SHA1_STRING					"SHA-1"
+
+#define	IKE_HASH_SHA256_ID						4
+#define	IKE_HASH_SHA256_STRING					"SHA2-256"
+
+#define	IKE_HASH_SHA384_ID						5
+#define	IKE_HASH_SHA384_STRING					"SHA2-384"
+
+#define	IKE_HASH_SHA512_ID						6
+#define	IKE_HASH_SHA512_STRING					"SHA2-512"
+
 
 // Number and name of DH algorithm for IKE
 #define	IKE_DH_1_ID								0

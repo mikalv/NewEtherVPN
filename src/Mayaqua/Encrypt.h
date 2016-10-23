@@ -507,6 +507,9 @@ void Des3Encrypt2(void *dest, void *src, UINT size, DES_KEY_VALUE *k1, DES_KEY_V
 void Des3Decrypt(void *dest, void *src, UINT size, DES_KEY *key, void *ivec);
 void Des3Decrypt2(void *dest, void *src, UINT size, DES_KEY_VALUE *k1, DES_KEY_VALUE *k2, DES_KEY_VALUE *k3, void *ivec);
 void Sha1(void *dst, void *src, UINT size);
+void Sha256(void *dst, void *src, UINT size);
+void Sha384(void *dst, void *src, UINT size);
+void Sha512(void *dst, void *src, UINT size);
 void Md5(void *dst, void *src, UINT size);
 void MacSha1(void *dst, void *key, UINT key_size, void *data, UINT data_size);
 void MacSha196(void *dst, void *key, void *data, UINT data_size);

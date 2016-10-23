@@ -321,6 +321,7 @@ struct IKE_SA
 	UINT NumResends;							// The number of retransmissions
 	char Secret[MAX_SIZE];						// Secret value of the authentication is successful
 	USHORT NumTransactions;						// Counter for the Transaction exchange messages
+	bool Xauthenticated;					// Indicates whether the client is using xauthentication and is authenticated. This is used in combination with caps.xaut
 };
 
 // IPsec SA
@@ -456,13 +457,16 @@ void MarkIkeClientAsDeleted(IKE_SERVER *ike, IKE_CLIENT *c);
 IKE_SA *GetOtherLatestIkeSa(IKE_SERVER *ike, IKE_SA *sa);
 IPSECSA *GetOtherLatestIPsecSa(IKE_SERVER *ike, IPSECSA *sa);
 void SendInformationalExchangePacket(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload);
-void SendXAuthRequest(IKE_SERVER *ike, IKE_SA *sa);
 void SendInformationalExchangePacketEx(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie);
+void SendTransactionalExchangePacket(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload);
+void SendTransactionalExchangePacketEx(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie);
+
+void SendExchangePacket(UINT type, IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload);
+void SendExchangePacketEx(UINT type, IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie);
+
+void SendXAuthRequest(IKE_SERVER *ike, IKE_CLIENT *c);
 void SendDeleteIkeSaPacket(IKE_SERVER *ike, IKE_CLIENT *c, UINT64 init_cookie, UINT64 resp_cookie);
 void SendDeleteIPsecSaPacket(IKE_SERVER *ike, IKE_CLIENT *c, UINT spi);
-void SendTransactionExchangePacket(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload);
-void SendTransactionExchangePacketEx(IKE_SERVER *ike, IKE_CLIENT *c, IKE_PACKET_PAYLOAD *payload, bool force_plain, UINT64 init_cookie, UINT64 resp_cookie);
-
 void IPsecCalcKeymat(IKE_SERVER *ike, IKE_HASH *h, void *dst, UINT dst_size, void *skeyid_d_data, UINT skeyid_d_size, UCHAR protocol, UINT spi, void *rand_init_data, UINT rand_init_size,
 					 void *rand_resp_data, UINT rand_resp_size, void *df_key_data, UINT df_key_size);
 

@@ -4335,6 +4335,42 @@ void Sha1(void *dst, void *src, UINT size)
 	SHA1(src, size, dst);
 }
 
+// SHA2-256 hash
+void Sha256(void *dst, void *src, UINT size)
+{
+	// Validate arguments
+	if (dst == NULL || src == NULL)
+	{
+		return;
+	}
+
+	SHA256(src, size, dst);
+}
+
+// SHA2-384 hash
+void Sha384(void *dst, void *src, UINT size)
+{
+	// Validate arguments
+	if (dst == NULL || src == NULL)
+	{
+		return;
+	}
+
+	SHA384(src, size, dst);
+}
+
+// SHA2-512 hash
+void Sha512(void *dst, void *src, UINT size)
+{
+	// Validate arguments
+	if (dst == NULL || src == NULL)
+	{
+		return;
+	}
+
+	SHA512(src, size, dst);
+}
+
 // MD5 hash
 void Md5(void *dst, void *src, UINT size)
 {

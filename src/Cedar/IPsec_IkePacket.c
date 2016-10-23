@@ -2378,6 +2378,10 @@ IKE_PACKET *IkeParseEx(void *data, UINT size, IKE_CRYPTO_PARAM *cparam, bool hea
 				payload_data = ((UCHAR *)h) + sizeof(IKE_HEADER);
 				payload_size = Endian32(h->MessageSize) - sizeof(IKE_HEADER);
 
+				char dataDump[size * 10];
+				BinToBeutifulHex(dataDump, size * 10, payload_data, payload_size);
+				Debug2("Received %sIKE Payload: size=%d\n%s\n", p->FlagEncrypted?"encrypted ":"", payload_size, dataDump);
+
 				// Decrypt if it is encrypted
 				if (p->FlagEncrypted)
 				{
@@ -2385,6 +2389,10 @@ IKE_PACKET *IkeParseEx(void *data, UINT size, IKE_CRYPTO_PARAM *cparam, bool hea
 
 					if (buf != NULL)
 					{
+						Zero(dataDump, sizeof(dataDump));
+						BinToBeutifulHex(dataDump, size * 10, buf->Buf, buf->Size);
+						Debug2("Decrypted Payload: size=%d\n%s\n", buf->Size, dataDump);
+
 						ok = true;
 
 						payload_data = buf->Buf;
@@ -2644,6 +2652,7 @@ BUF *IkeDecrypt(void *data, UINT size, IKE_CRYPTO_PARAM *cparam)
 		no_free = true;
 	}
 
+
 	IkeCryptoDecrypt(cparam->Key, tmp, data, size, cparam->Iv);
 
 	if (size >= cparam->Key->Crypto->BlockSize)
@@ -2726,7 +2735,7 @@ IKE_ENGINE *NewIkeEngine()
 {
 	IKE_ENGINE *e = ZeroMalloc(sizeof(IKE_ENGINE));
 	IKE_CRYPTO *des, *des3, *aes;
-	IKE_HASH *sha1, *md5;
+	IKE_HASH *sha1, *md5, *sha256, *sha384, *sha512;
 	IKE_DH *dh1, *dh2, *dh5, *dh14, *dh15, *dh16;
 	UINT des_key_sizes[] =
 	{
@@ -2765,6 +2774,15 @@ IKE_ENGINE *NewIkeEngine()
 	// MD5
 	md5 = NewIkeHash(e, IKE_HASH_MD5_ID, IKE_HASH_MD5_STRING, 16);
 
+	//TODO Implement HMacSha256, HMacSha384, HMacSha512
+	/*
+	// sha2-256
+	sha256 = NewIkeHash(e, IKE_HASH_SHA256_ID, IKE_HASH_SHA256_STRING, 32);
+	// sha2-384
+	sha384 = NewIkeHash(e, IKE_HASH_SHA384_ID, IKE_HASH_SHA384_STRING, 48);
+	// sha2-512
+	sha512 = NewIkeHash(e, IKE_HASH_SHA512_ID, IKE_HASH_SHA512_STRING, 64);
+	*/
 	//// DH algorithm
 	dh1 = NewIkeDh(e, IKE_DH_1_ID, IKE_DH_1_STRING, 96);
 	dh2 = NewIkeDh(e, IKE_DH_2_ID, IKE_DH_2_STRING, 128);
@@ -3014,6 +3032,10 @@ void IkeCryptoEncrypt(IKE_CRYPTO_KEY *k, void *dst, void *src, UINT size, void *
 		return;
 	}
 
+	char ivDump[AES_IV_SIZE * 10];
+	BinToBeutifulHex(ivDump, AES_IV_SIZE * 10, ivec, AES_IV_SIZE);
+	Debug2("CryptoEncryt IV-> Size=%d\n%s\n");
+
 	if ((size % k->Crypto->BlockSize) != 0)
 	{
 		Zero(dst, size);
@@ -3050,7 +3072,9 @@ void IkeCryptoDecrypt(IKE_CRYPTO_KEY *k, void *dst, void *src, UINT size, void *
 		Zero(dst, size);
 		return;
 	}
-
+	char ivDump[AES_IV_SIZE * 10];
+	BinToBeutifulHex(ivDump, AES_IV_SIZE * 10, ivec, AES_IV_SIZE);
+	Debug2("CryptoDecryt IV-> Size=%d\n%s\n");
 	if ((size % k->Crypto->BlockSize) != 0)
 	{
 		Zero(dst, size);
@@ -3099,7 +3123,15 @@ void IkeHash(IKE_HASH *h, void *dst, void *src, UINT size)
 		// SHA-1
 		Sha1(dst, src, size);
 		break;
-
+	/*case IKE_HASH_SHA256_ID:
+		Sha256(dst, src, size);
+		break;
+	case IKE_HASH_SHA384_ID:
+		Sha384(dst, src, size);
+		break;
+	case IKE_HASH_SHA512_ID:
+		Sha512(dst, src, size);
+		break;*/
 	default:
 		// Unknown
 		Zero(dst, size);
@@ -3511,6 +3543,12 @@ char *ikeTransformP1HashToString(UINT hash) {
       return "MD5";
     case IKE_P1_HASH_SHA1:
       return "SHA1";
+    case IKE_P1_HASH_SHA256:
+    	return "SHA2_256";
+    case IKE_P1_HASH_SHA384:
+        	return "SHA2_384";
+    case IKE_P1_HASH_SHA512:
+        	return "SHA2_512";
     default:
       return CopyFormat("UNKNOWN_HASH:%d", hash);
   }
