@@ -1819,6 +1819,11 @@ void StartQuickMode(IKE_SERVER *ike, IKE_CLIENT *c)
 	}
 
 	ike_sa = c->CurrentIkeSa;
+	if (ike_sa == NULL)
+	{
+		return;
+	}
+
 	if (IsZero(&c->CachedTransformSetting, sizeof(IPSEC_SA_TRANSFORM_SETTING)))
 	{
 		// Cached transform setting does not exist
@@ -1826,11 +1831,6 @@ void StartQuickMode(IKE_SERVER *ike, IKE_CLIENT *c)
 		return;
 	}
 
-
-	if (ike_sa == NULL)
-	{
-		return;
-	}
 
 	IPsecLog(ike, NULL, ike_sa, NULL, "LI_START_QM_FROM_SERVER");
 
@@ -3449,8 +3449,10 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 						Copy(&sa->Caps, &caps, sizeof(IKE_CAPS));
 
 						Insert(ike->IkeSaList, sa);
-						IKE_SA * sa = c->CurrentIkeSa;
-
+						if (sa == NULL)
+						{
+							return;
+						}
 
 						// Answer the SA parameter selection results
 						sa->State = IKE_SA_MM_STATE_1_SA;
@@ -3756,6 +3758,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 							// Transmission
 							IkeSaSendPacket(ike, sa, ps);
 							sa->NumResends = 3;
+							sa->NumTransactions = 0;
 
 							IkeFree(ps);
 
@@ -3772,7 +3775,7 @@ void ProcIkeMainModePacketRecv(IKE_SERVER *ike, UDPPACKET *p, IKE_PACKET *header
 
 							IPsecLog(ike, NULL, sa, NULL, "LI_IKE_SA_ESTABLISHED");
 							// Send the XAuth transaction
-							SendXAuthRequest(ike, sa);
+							SendXAuthRequest(ike, c);
 						}
 						else
 						{
