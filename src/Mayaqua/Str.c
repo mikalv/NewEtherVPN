@@ -1982,7 +1982,7 @@ void BinToBeutifulHex(char *str, UINT str_size, void *data, UINT data_size)
 	UINT numLines;
 	UINT i,j;
 	// Validate arguments
-	if (str == NULL || data == NULL)
+	if (str == NULL || data == NULL || data_size == 0)
 	{
 		return;
 	}
@@ -1995,8 +1995,10 @@ void BinToBeutifulHex(char *str, UINT str_size, void *data, UINT data_size)
 		numLines++;
 	}
 
-	// Calculation of size: Hex Representation + 2xspace + Char representation + new line
-	size = data_size * 3 + numLines * 3 + data_size + numLines * 3;
+	// Size calculation:
+	// ( 15(Index size) + entriesPerLine * 4 + 2*(space) + entriesPerLine + 2(new line) + 50(buffer, just in case) ) * numLines
+	size = (15 + entriesPerLine * 4 + 2 + entriesPerLine + 2 + 50) * numLines;
+
 	// Memory allocation
 	tmp = ZeroMalloc(size);
 
@@ -2005,13 +2007,14 @@ void BinToBeutifulHex(char *str, UINT str_size, void *data, UINT data_size)
 	UINT cursor = 0;
 	for (i = 0; i < numLines; i++) {
 		UINT startIndex = i * entriesPerLine;
-		if (startIndex < 100) {
-			Format(&tmp[cursor], 4, "%02d: ", startIndex);
-			cursor+=3;
-		} else if (startIndex >= 100) {
-			Format(&tmp[cursor], 5, "%03d: ", startIndex);
-			cursor+=4;
-		}
+		INT indexLength = getNumberLength(startIndex);
+		INT formatLength = indexLength + 6;
+		char indexFormat[formatLength];
+
+		// Create the string to format the start index
+		Format(&indexFormat, formatLength, "%%0%dd: ", indexLength);
+		Format(&tmp[cursor], indexLength + 2, indexFormat, startIndex);
+		cursor+=indexLength + 1;
 
 		for (j = 0; j < entriesPerLine; j++) {
 			if (index >= data_size) break;
@@ -2047,6 +2050,17 @@ void BinToBeutifulHex(char *str, UINT str_size, void *data, UINT data_size)
 	StrCpy(str, str_size, tmp);
 	// Memory release
 	Free(tmp);
+}
+
+INT getNumberLength(UINT number) {
+	INT length = 0;
+	if (number == 0) return 1;
+
+	while (number > 0) {
+		length++;
+		number = number / 10;
+	}
+	return length;
 }
 
 void BinToStrEx2(char *str, UINT str_size, void *data, UINT data_size, char padding_char)
