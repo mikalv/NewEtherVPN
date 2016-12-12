@@ -3489,6 +3489,10 @@ char *ikeTransformValueP1NameToString(UCHAR transformValueName) {
       return "P1_AUTH_METHOD";
     case IKE_TRANSFORM_VALUE_P1_DH_GROUP:
       return "P1_DH_GROUP";
+    case IKE_TRANSFORM_VALUE_P1_DH_GROUP_TYPE:
+      return "P1_DH_GROUP_TYPE";
+    case IKE_TRANSFORM_VALUE_P1_DH_GROUP_PRIME:
+      return "P1_DH_GROUP_PRIME";
     case IKE_TRANSFORM_VALUE_P1_LIFE_TYPE:
       return "P1_LIFE_TYPE";
     case IKE_TRANSFORM_VALUE_P1_LIFE_VALUE:
@@ -3512,12 +3516,29 @@ char *ikeTransformValueP1ValueToString(UCHAR name, UINT value) {
         return ikeTransformP1DhGroupToString(value);
       case IKE_TRANSFORM_VALUE_P1_LIFE_TYPE:
         return ikeTransformP1LifeTypeToString(value);
+      case IKE_TRANSFORM_VALUE_P1_DH_GROUP_TYPE:
+        return ikeTransformP1GroupTypeToString(value);
+      case IKE_TRANSFORM_VALUE_P1_DH_GROUP_PRIME:
       case IKE_TRANSFORM_VALUE_P1_LIFE_VALUE:
       case IKE_TRANSFORM_VALUE_P1_KET_SIZE:
         return CopyFormat("%u", value);
       default:
-        return CopyFormat("Unknown TransformValueName:%d", name);
+        return CopyFormat("Unknown TransformValueNameValue:%d", name);
     }
+}
+
+
+char *ikeTransformP1GroupTypeToString(UINT groupType) {
+	switch(groupType) {
+	case IKE_P1_GROUPTYPE_MODP:
+		return "MODP";
+	case IKE_P1_GROUPTYPE_ECP:
+		return "ECP";
+	case IKE_P1_GROUPTYPE_EC2N:
+		return "EC2N";
+	default:
+		return "Unknown group Type";
+	}
 }
 
 char *ikeTransformP1CryptoToString(UINT crypto) {
@@ -3583,6 +3604,10 @@ char *ikeTransformP1DhGroupToString(UINT dhGroup) {
       return "768_MODP";
     case IKE_P1_DH_GROUP_1024_MODP:
       return "1024_MODP";
+    case IKE_P1_DH_GROUP_EC2N_2_155:
+          return "IKE_P1_DH_GROUP_EC2N_2_155";
+    case IKE_P1_DH_GROUP_EC2N_2_185:
+          return "IKE_P1_DH_GROUP_EC2N_2_185";
     case IKE_P1_DH_GROUP_1536_MODP:
       return "1536_MODP";
     case IKE_P1_DH_GROUP_2048_MODP:

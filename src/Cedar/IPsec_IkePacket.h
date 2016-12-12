@@ -230,6 +230,8 @@ struct IKE_TRANSFORM_VALUE
 #define IKE_TRANSFORM_VALUE_P1_HASH				2	// Hash algorithm
 #define IKE_TRANSFORM_VALUE_P1_AUTH_METHOD		3	// Authentication method
 #define IKE_TRANSFORM_VALUE_P1_DH_GROUP			4	// DH group number
+#define IKE_TRANSFORM_VALUE_P1_DH_GROUP_TYPE	5	// DH group type
+#define IKE_TRANSFORM_VALUE_P1_DH_GROUP_PRIME	6	// Group Prime/Irreducible Polynomial
 #define IKE_TRANSFORM_VALUE_P1_LIFE_TYPE		11	// Expiration date type
 #define IKE_TRANSFORM_VALUE_P1_LIFE_VALUE		12	// Expiration date
 #define IKE_TRANSFORM_VALUE_P1_KET_SIZE			14	// Key size
@@ -269,10 +271,17 @@ struct IKE_TRANSFORM_VALUE
 // Phase 1: The DH group number in the IKE transform value
 #define IKE_P1_DH_GROUP_768_MODP			1
 #define IKE_P1_DH_GROUP_1024_MODP			2
+#define IKE_P1_DH_GROUP_EC2N_2_155			3
+#define IKE_P1_DH_GROUP_EC2N_2_185			4
 #define IKE_P1_DH_GROUP_1536_MODP			5
-#define IKE_P1_DH_GROUP_2048_MODP                       14
-#define IKE_P1_DH_GROUP_3072_MODP                       15
-#define IKE_P1_DH_GROUP_4096_MODP                       16
+#define IKE_P1_DH_GROUP_2048_MODP			14
+#define IKE_P1_DH_GROUP_3072_MODP			15
+#define IKE_P1_DH_GROUP_4096_MODP			16
+
+#define IKE_P1_GROUPTYPE_MODP				1
+#define IKE_P1_GROUPTYPE_ECP				2
+#define IKE_P1_GROUPTYPE_EC2N				3
+
 
 // Phase 1: The expiration date type in IKE transform value
 #define IKE_P1_LIFE_TYPE_SECONDS			1
@@ -817,6 +826,7 @@ char *ikeTransformP1HashToString(UINT hash);
 char *ikeTransformP1AuthMethodToString(UINT authMethod);
 char *ikeTransformP1DhGroupToString(UINT dhGroup);
 char *ikeTransformP1LifeTypeToString(UINT lifeType);
+char *ikeTransformP1GroupTypeToString(UINT groupType);
 
 #endif	// IPSEC_PACKET_H
 
