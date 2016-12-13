@@ -2052,6 +2052,9 @@ void BinToBeutifulHex(char *str, UINT str_size, void *data, UINT data_size)
 	Free(tmp);
 }
 
+/**
+ * Returns the number of digits in a number
+ */
 INT getNumberLength(UINT number) {
 	INT length = 0;
 	if (number == 0) return 1;
@@ -2062,6 +2065,17 @@ INT getNumberLength(UINT number) {
 	}
 	return length;
 }
+
+
+/**
+ * The format follows the sprintf standard. The size willl be printed first then the actual hex dump
+ */
+void printBeautifulHex(char * format, UINT size, void * data) {
+	char dump[size * 10];
+	BinToBeutifulHex(dump, sizeof(dump), data, size);
+	Debug2(format, size, dump);
+}
+
 
 void BinToStrEx2(char *str, UINT str_size, void *data, UINT data_size, char padding_char)
 {
