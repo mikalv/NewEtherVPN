@@ -353,6 +353,7 @@ struct IKE_CERT_REQUEST_HEADER
 struct IKE_DATA_ATTRIBUTE {
     USHORT 	Type;
     UINT 		Value;
+    UCHAR 		*ValueString;
 };
 
 // IKE notification payload header
@@ -711,9 +712,11 @@ void IkeFreeSaPayload(IKE_PACKET_SA_PAYLOAD *t);
 bool IkeParseProposalPayload(IKE_PACKET_PROPOSAL_PAYLOAD *t, BUF *b);
 void IkeFreeProposalPayload(IKE_PACKET_PROPOSAL_PAYLOAD *t);
 bool IkeParseTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t, BUF *b);
+bool IkeParseAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t, BUF *b);
 void IkeFreeTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t);
 void IkeFreeAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t);
 LIST *IkeParseTransformValueList(BUF *b);
+LIST *IkeParseDataAttributesformValueList(BUF *b);
 void IkeFreeTransformValueList(LIST *o);
 bool IkeParseIdPayload(IKE_PACKET_ID_PAYLOAD *t, BUF *b);
 void IkeFreeIdPayload(IKE_PACKET_ID_PAYLOAD *t);

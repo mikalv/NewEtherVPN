@@ -1216,6 +1216,8 @@ IKE_PACKET_PAYLOAD *IkeParsePayload(UINT payload_type, BUF *b)
 	p = ZeroMalloc(sizeof(IKE_PACKET_PAYLOAD));
 	p->PayloadType = payload_type;
 
+	Debug2("Parse Payload %s\n", payloadToString(p->PayloadType));
+	printBeautifulHex("Payload size=%d\n.%s\n", b->Size, b->Buf);
 	switch (p->PayloadType)
 	{
 	case IKE_PAYLOAD_SA:					// SA payload
@@ -1228,6 +1230,10 @@ IKE_PACKET_PAYLOAD *IkeParsePayload(UINT payload_type, BUF *b)
 
 	case IKE_PAYLOAD_TRANSFORM:			// Transform payload
 		ok = IkeParseTransformPayload(&p->Payload.Transform, b);
+		break;
+
+	case IKE_PAYLOAD_ATTRIBUTE:
+		ok = IkeParseAttributePayload(&p->Payload.Attribute, b);
 		break;
 
 	case IKE_PAYLOAD_ID:					// ID payload
@@ -1324,6 +1330,8 @@ bool IkeParseSaPayload(IKE_PACKET_SA_PAYLOAD *t, BUF *b)
 	return true;
 }
 
+
+
 // Release the SA payload
 void IkeFreeSaPayload(IKE_PACKET_SA_PAYLOAD *t)
 {
@@ -1404,6 +1412,7 @@ void IkeFreeProposalPayload(IKE_PACKET_PROPOSAL_PAYLOAD *t)
 	}
 }
 
+
 // Parse the transform payload
 bool IkeParseTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t, BUF *b)
 {
@@ -1427,6 +1436,55 @@ bool IkeParseTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t, BUF *b)
 	return true;
 }
 
+bool IkeParseAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t, BUF *b) {
+	IKE_ATTRIBUTE_HEADER h;
+	BUF *buf;
+	UINT size;
+	// Validate arguments
+	if (t == NULL || b == NULL)
+	{
+		return false;
+	}
+	if (b->Size < sizeof(IKE_ATTRIBUTE_HEADER))
+	{
+		return false;
+	}
+
+	size = b->Size;
+	if (ReadBuf(b, &h, sizeof(h)) != sizeof(h)) {
+		Debug("ISAKMP: Broken Packet (Invalid Payload Size)\n");
+		LABEL_ERROR:
+		// Header reading failure
+		IkeFreeAttributePayload(t);
+		return false;
+	}
+	t->Type = h.Type;
+	t->Id = h.Id;
+
+	size -= sizeof(h);
+	buf = ReadBufFromBuf(b, size);
+	t->Attributes = IkeParseDataAttributesformValueList(buf);
+
+
+	return true;
+}
+
+// Release the attribute payload
+void IkeFreeAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t)
+{
+  // Validate arguments
+  if (t == NULL)
+  {
+    return;
+  }
+
+  if (t->Attributes != NULL)
+  {
+    IkeFreeTransformValueList(t->Attributes);
+    t->Attributes = NULL;
+  }
+}
+
 // Create a new transform value
 IKE_PACKET_TRANSFORM_VALUE *IkeNewTransformValue(UCHAR type, UINT value)
 {
@@ -1446,6 +1504,128 @@ IKE_DATA_ATTRIBUTE *IkeNewDataAttribute(USHORT type, UINT value) {
 
 	return v;
 }
+
+// Parse the Data attributes value list
+LIST *IkeParseDataAttributesformValueList(BUF *b)
+{
+	LIST *o;
+	bool ok = true;
+	// Validate arguments
+	if (b == NULL)
+	{
+		return NULL;
+	}
+	printBeautifulHex("Parse DataAttributesList. Size=%d\n%s\n", b->Size, b->Buf);
+	o = NewListFast(NULL);
+	while (b->Current < b->Size)
+	{
+		UCHAR af_bit, type;
+		USHORT size;
+		UINT value = 0;
+		IKE_DATA_ATTRIBUTE *v;
+
+		if (ReadBuf(b, &af_bit, sizeof(af_bit)) != sizeof(af_bit))
+		{
+			ok = false;
+			break;
+		}
+
+		if (ReadBuf(b, &type, sizeof(type)) != sizeof(type))
+		{
+			ok = false;
+			break;
+		}
+
+		if (ReadBuf(b, &size, sizeof(size)) != sizeof(size))
+		{
+			ok = false;
+		}
+
+		size = Endian16(size);
+
+		v = ZeroMalloc(sizeof(IKE_PACKET_TRANSFORM_VALUE));
+		if (af_bit == 0)
+		{
+			UCHAR *tmp = Malloc(size);
+
+			if (ReadBuf(b, tmp, size) != size)
+			{
+				ok = false;
+				Free(tmp);
+				break;
+			}
+
+			switch (size)
+			{
+			case sizeof(UINT):
+				value = READ_UINT(tmp);
+				break;
+
+			case sizeof(USHORT):
+				value = READ_USHORT(tmp);
+				break;
+
+			case sizeof(UCHAR):
+				value = *((UCHAR *)tmp);
+				break;
+			}
+
+			Free(tmp);
+		}
+
+		else if ( (af_bit & 0x80 != 0x80) || (af_bit & 0x40) ) {
+			//If the af_bit is neither zero nor the most significant bit is 1, then it is ISAKMP configuration attribute.
+			// Where the first two bytes, except the most significant bit, is the attribute type (1-32767)
+			USHORT type = (af_bit << 8) | type;
+			value = (UINT)size;
+			char attribute[value];
+			Zero(&attribute, value);
+
+			int bytes = ReadBuf(b, &attribute, value);
+			if (bytes != value) {
+				Debug2("ERROR. Number of bytes read does not match the size\n");
+			}
+
+			int i;
+			for (i = 1; i < value; i++) {
+				Debug2(attribute[i]);
+			}
+			Debug2("\n");
+			Debug2("ppp=%s\n", attribute);
+			Debug2("ppp=%u\n", attribute);
+			Debug2("ppp=%c\n", attribute);
+			v->ValueString = &attribute;
+			Debug2("Parsed string=%s\n", v->ValueString);
+		}
+		else
+		{
+			//conclusion: af_bit = 1
+			value = (UINT)size;
+		}
+
+
+		v->Type = type;
+		v->Value = value;
+
+		char *k1 = ikeTransformValueP1NameToString(v->Type);
+		char *k2 = ikeTransformValueP1ValueToString(v->Type, v->Value);
+		//Debug2("(%s,%s), ", k1, k2);
+
+
+
+		Add(o, v);
+	}
+	Debug2("\n");
+
+	if (ok == false)
+	{
+		IkeFreeTransformValueList(o);
+		o = NULL;
+	}
+
+	return o;
+}
+
 // Parse the transform value list
 LIST *IkeParseTransformValueList(BUF *b)
 {
@@ -1575,22 +1755,6 @@ void IkeFreeTransformPayload(IKE_PACKET_TRANSFORM_PAYLOAD *t)
 		IkeFreeTransformValueList(t->ValueList);
 		t->ValueList = NULL;
 	}
-}
-
-// Release the attribute payload
-void IkeFreeAttributePayload(IKE_PACKET_ATTRIBUTE_PAYLOAD *t)
-{
-  // Validate arguments
-  if (t == NULL)
-  {
-    return;
-  }
-
-  if (t->Attributes != NULL)
-  {
-    IkeFreeTransformValueList(t->Attributes);
-    t->Attributes = NULL;
-  }
 }
 
 // Parse the ID payload
@@ -2021,7 +2185,6 @@ bool IkeParseDataPayload(IKE_PACKET_DATA_PAYLOAD *t, BUF *b)
 	}
 
 	t->Data = MemToBuf(b->Buf, b->Size);
-	Debug2("Parsing data Payload\n");
 	return true;
 }
 
@@ -2152,6 +2315,10 @@ LABEL_ERROR:
 
 		total += sizeof(header);
 
+
+		Debug2("Payload header: PayloadType=%d. size=%d. NextPayload=%d.\n", payload_type, header.PayloadSize, header.NextPayload);
+
+
 		// Get the payload size
 		payload_size = Endian16(header.PayloadSize);
 
@@ -2194,7 +2361,6 @@ LABEL_ERROR:
 		{
 			// Unsupported payload type
 			Debug("ISAKMP: Ignored Payload Type: %u\n", payload_type);
-			Debug2("ISAKMP: Ignored Payload Type: %u\n", payload_type);
 			pay = IkeParsePayload(payload_type, payload_data);
 
 			if (pay == NULL)
@@ -2389,9 +2555,7 @@ IKE_PACKET *IkeParseEx(void *data, UINT size, IKE_CRYPTO_PARAM *cparam, bool hea
 
 					if (buf != NULL)
 					{
-						Zero(dataDump, sizeof(dataDump));
-						BinToBeutifulHex(dataDump, size * 10, buf->Buf, buf->Size);
-						Debug2("Decrypted Payload: size=%d\n%s\n", buf->Size, dataDump);
+						printBeautifulHex("Decrypted Payload: size=%d\n%s\n", buf->Size, buf->Buf);
 
 						ok = true;
 
@@ -2602,6 +2766,7 @@ BUF *IkeEncrypt(void *data, UINT size, IKE_CRYPTO_PARAM *cparam)
 		no_free = true;
 	}
 
+	printBeautifulHex("Encypting using IV => size=%d\n  %s\n", IKE_MAX_BLOCK_SIZE, cparam->Iv);
 	IkeCryptoEncrypt(cparam->Key, tmp, data, size, cparam->Iv);
 
 	if (size >= cparam->Key->Crypto->BlockSize)
@@ -2652,7 +2817,7 @@ BUF *IkeDecrypt(void *data, UINT size, IKE_CRYPTO_PARAM *cparam)
 		no_free = true;
 	}
 
-
+	printBeautifulHex("Decrypting using IV => size=%d\n  %s\n", IKE_MAX_BLOCK_SIZE, cparam->Iv);
 	IkeCryptoDecrypt(cparam->Key, tmp, data, size, cparam->Iv);
 
 	if (size >= cparam->Key->Crypto->BlockSize)
@@ -3032,10 +3197,6 @@ void IkeCryptoEncrypt(IKE_CRYPTO_KEY *k, void *dst, void *src, UINT size, void *
 		return;
 	}
 
-	char ivDump[AES_IV_SIZE * 10];
-	BinToBeutifulHex(ivDump, AES_IV_SIZE * 10, ivec, AES_IV_SIZE);
-	Debug2("CryptoEncryt IV-> Size=%d\n%s\n");
-
 	if ((size % k->Crypto->BlockSize) != 0)
 	{
 		Zero(dst, size);
@@ -3072,9 +3233,7 @@ void IkeCryptoDecrypt(IKE_CRYPTO_KEY *k, void *dst, void *src, UINT size, void *
 		Zero(dst, size);
 		return;
 	}
-	char ivDump[AES_IV_SIZE * 10];
-	BinToBeutifulHex(ivDump, AES_IV_SIZE * 10, ivec, AES_IV_SIZE);
-	Debug2("CryptoDecryt IV-> Size=%d\n%s\n");
+
 	if ((size % k->Crypto->BlockSize) != 0)
 	{
 		Zero(dst, size);
@@ -3395,6 +3554,8 @@ char *payloadToString(UINT payloadType) {
       return "PAYLOAD_DELETE";
     case IKE_PAYLOAD_VENDOR_ID:
       return "PAYLOAD_VENDOR_ID";
+    case IKE_PAYLOAD_ATTRIBUTE:
+    	return "PAYLOAD_ATTRIBUTE";
     case IKE_PAYLOAD_NAT_D:
       return "PAYLOAD_NAT_D";
     case IKE_PAYLOAD_NAT_OA:
