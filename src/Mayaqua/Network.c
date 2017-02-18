@@ -13015,7 +13015,9 @@ bool StartSSLEx(SOCK *sock, X *x, K *priv, bool client_tls, UINT ssl_timeout, ch
 		{
 			if (client_tls == false)
 			{
+#ifndef OPENSSL_NO_SSL3_METHOD
 				SSL_CTX_set_ssl_version(ssl_ctx, SSLv3_method());
+#endif
 			}
 			else
 			{
