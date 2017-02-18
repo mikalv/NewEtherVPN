@@ -120,7 +120,7 @@
 #endif	// OS_WIN32
 
 // Maximum hash size
-#define	IKE_MAX_HASH_SIZE				20		// Size of SHA-1 is the maximum for now
+#define	IKE_MAX_HASH_SIZE				64		// Size of SHA-2-512 is the maximum for now
 
 // Maximum block size
 #define	IKE_MAX_BLOCK_SIZE				16		// Size of AES is maximum at the moment
@@ -250,6 +250,9 @@ struct IKE_TRANSFORM_VALUE
 // Phase 1: The hash algorithm in IKE transform value
 #define	IKE_P1_HASH_MD5						1
 #define IKE_P1_HASH_SHA1					2
+#define IKE_P1_HASH_SHA2_256				4
+#define IKE_P1_HASH_SHA2_384				5
+#define IKE_P1_HASH_SHA2_512				6
 
 // Phase 1: The authentication method in the IKE transform value
 #define IKE_P1_AUTH_METHOD_PRESHAREDKEY		1
@@ -259,6 +262,9 @@ struct IKE_TRANSFORM_VALUE
 #define IKE_P1_DH_GROUP_768_MODP			1
 #define IKE_P1_DH_GROUP_1024_MODP			2
 #define IKE_P1_DH_GROUP_1536_MODP			5
+#define IKE_P1_DH_GROUP_2048_MODP			14
+#define IKE_P1_DH_GROUP_3072_MODP			15
+#define IKE_P1_DH_GROUP_4096_MODP			16
 
 // Phase 1: The expiration date type in IKE transform value
 #define IKE_P1_LIFE_TYPE_SECONDS			1
@@ -272,6 +278,9 @@ struct IKE_TRANSFORM_VALUE
 #define IKE_P2_DH_GROUP_768_MODP			1
 #define IKE_P2_DH_GROUP_1024_MODP			2
 #define IKE_P2_DH_GROUP_1536_MODP			5
+#define IKE_P2_DH_GROUP_2048_MODP			14
+#define IKE_P2_DH_GROUP_3072_MODP			15
+#define IKE_P2_DH_GROUP_4096_MODP			16
 
 // Phase 2: The encapsulation mode in IPsec transform value
 #define IKE_P2_CAPSULE_TUNNEL				1
@@ -530,6 +539,15 @@ struct IKE_P1_KEYSET
 #define	IKE_HASH_SHA1_ID						1
 #define	IKE_HASH_SHA1_STRING					"SHA-1"
 
+#define	IKE_HASH_SHA2_256_ID					2
+#define	IKE_HASH_SHA2_256_STRING				"SHA-2-256"
+
+#define	IKE_HASH_SHA2_384_ID					3
+#define	IKE_HASH_SHA2_384_STRING				"SHA-2-384"
+
+#define	IKE_HASH_SHA2_512_ID					4
+#define	IKE_HASH_SHA2_512_STRING				"SHA-2-512"
+
 // Number and name of DH algorithm for IKE
 #define	IKE_DH_1_ID								0
 #define	IKE_DH_1_STRING							"MODP 768 (Group 1)"
@@ -539,6 +557,15 @@ struct IKE_P1_KEYSET
 
 #define	IKE_DH_5_ID								2
 #define	IKE_DH_5_STRING							"MODP 1536 (Group 5)"
+
+#define IKE_DH_2048_ID							14
+#define IKE_DH_2048_STRING						"MODP 2048 (Group 14)"
+
+#define IKE_DH_3072_ID							15
+#define IKE_DH_3072_STRING						"MODP 3072 (Group 15)"
+
+#define IKE_DH_4096_ID							16
+#define IKE_DH_4096_STRING						"MODP 4096 (Group 16)"
 
 
 // Encryption algorithm for IKE
